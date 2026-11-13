@@ -1,0 +1,86 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: flashsale-engine
+  threads:
+    virtual:
+      enabled: true
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/flashsale_db
+    username: postgres
+    password: postgrespassword
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      idle-timeout: 30000
+      connection-timeout: 20000
+      pool-name: FlashSaleHikariPool
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        concurrency: 5
+        max-concurrency: 20
+        prefetch: 50
+
+flashsale:
+  rabbitmq:
+    exchange: flashsale.order.exchange
+    queue: flashsale.order.create.queue
+    routing-key: flashsale.order.create
+    dlx-exchange: flashsale.order.dlx.exchange
+    dlq-queue: flashsale.order.dlq.queue
+    dlq-routing-key: flashsale.order.dlq
+  rate-limit:
+    capacity: 20
+    refill-tokens-per-second: 10
+  idempotency:
+    ttl-seconds: 86400 # 24h
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
