@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlashSale-Engine ⚡ High-Concurrency Booking Engine</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            dark: '#0B0F19',
+                            card: '#131B2E',
+                            border: '#1E293B',
+                            accent: '#F59E0B',
+                            emerald: '#10B981',
+                            crimson: '#EF4444',
+                            cyan: '#06B6D4'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0B0F19;
+            color: #F1F5F9;
+        }
+        .glow-gold {
+            box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.25);
+        }
+        .glow-cyan {
+            box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.25);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #131B2E;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+
+    <!-- Top Navigation -->
+    <header class="border-b border-brand-border bg-brand-dark/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-black font-extrabold text-xl shadow-lg shadow-amber-500/20">
+                    ⚡
+                </div>
+                <div>
+                    <h1 class="font-display font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
+                        FlashSale-Engine
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-mono border border-amber-500/20 font-normal">v1.0.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">High-Concurrency Booking Engine & Zero-Overselling Demo</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-slate-300 font-mono">JDK 21 Virtual Threads</span>
+                </div>
+                <button onclick="refreshData()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
+                    <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+
+        <!-- Event Hero & Realtime Inventory Cards -->
+        <section>
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="font-display font-bold text-2xl text-white">Live Flash-Sale Inventory</h2>
+                    <p class="text-sm text-slate-400">Real-time stock monitoring backed by ACID Ledger & In-Memory Redis</p>
+                </div>
+                <span class="text-xs font-mono text-slate-400" id="last-updated-text">Updating...</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="tickets-container">
+                <!-- Skeleton loader -->
+                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-48"></div>
+                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-48"></div>
+            </div>
+        </section>
+
+        <!-- Two Column Control Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+            <!-- Left: Single Booking Cockpit (5 Cols) -->
+            <section class="lg:col-span-5 space-y-6">
+                <div class="bg-brand-card rounded-2xl border border-brand-border p-6 space-y-5 glow-gold">
+                    <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="ticket" class="w-5 h-5 text-amber-400"></i>
+                            <h3 class="font-display font-bold text-lg text-white">Single Order Booking</h3>
+                        </div>
+                        <span class="text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded font-mono border border-amber-500/20">Manual Order</span>
+                    </div>
+
+                    <!-- Booking Form -->
+                    <form id="order-form" onsubmit="handleManualOrder(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Select Ticket Tier</label>
+                            <select id="ticket-select" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 transition">
+                                <option value="1">VIP Flash Sale ($299.99)</option>
+                                <option value="2">General Admission ($99.99)</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">Quantity (1-10)</label>
+                                <input type="number" id="ticket-qty" min="1" max="10" value="1" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">User ID</label>
+                                <input type="text" id="user-id" value="nhatnguyen" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 transition font-mono">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Locking Strategy</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="strategy" value="PESSIMISTIC" class="peer sr-only">
+                                    <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-500 peer-checked:text-amber-400 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center text-xs transition">
+                                        <div class="font-bold">🔒 Pessimistic</div>
+                                        <div class="text-[10px] text-slate-400">FOR UPDATE</div>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="strategy" value="OPTIMISTIC" class="peer sr-only">
+                                    <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-500 peer-checked:text-amber-400 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center text-xs transition">
+                                        <div class="font-bold">🔄 Optimistic</div>
+                                        <div class="text-[10px] text-slate-400">@Version</div>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="strategy" value="REDIS_LUA" checked class="peer sr-only">
+                                    <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-500 peer-checked:text-amber-400 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center text-xs transition">
+                                        <div class="font-bold">⚡ Redis Lua</div>
+                                        <div class="text-[10px] text-slate-400">In-Memory</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 pt-1">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-400 font-medium">Idempotency Key (X-Idempotency-Key)</span>
+                                <button type="button" onclick="regenerateIdempotencyKey()" class="text-amber-400 hover:underline text-[11px]">Generate New</button>
+                            </div>
+                            <input type="text" id="idempotency-key" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-300 font-mono focus:outline-none focus:border-amber-500 transition">
+                            <div class="flex items-center space-x-2 pt-1">
+                                <input type="checkbox" id="keep-idempotency" class="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-0">
+                                <label for="keep-idempotency" class="text-xs text-slate-400 cursor-pointer">Lock Key to test duplicate resubmission (Idempotency Proof)</label>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="btn-submit-order" class="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-sm shadow-lg shadow-amber-500/20 transition flex items-center justify-center space-x-2">
+                            <span>Place Ticket Order</span>
+                            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Right: Concurrency Rush Simulator (7 Cols) -->
+            <section class="lg:col-span-7 space-y-6">
+                <div class="bg-brand-card rounded-2xl border border-brand-border p-6 space-y-5 glow-cyan">
+                    <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="zap" class="w-5 h-5 text-cyan-400"></i>
+                            <h3 class="font-display font-bold text-lg text-white">Browser Concurrency Stress Simulator</h3>
+                        </div>
+                        <span class="text-xs bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded font-mono border border-cyan-500/20">Race Condition Lab</span>
+                    </div>
+
+                    <p class="text-xs text-slate-300">
+                        Fire up to <strong class="text-white">100 parallel asynchronous requests</strong> directly from your browser in the exact same millisecond. Prove that the engine achieves <strong class="text-emerald-400">0% overselling</strong> under brutal contention!
+                    </p>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Burst Threads</label>
+                            <select id="sim-concurrency" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                                <option value="20">20 Parallel Users</option>
+                                <option value="50" selected>50 Parallel Users</option>
+                                <option value="100">100 Parallel Users</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Target Ticket</label>
+                            <select id="sim-ticket" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                                <option value="1">VIP Flash Sale (Tier 1)</option>
+                                <option value="2">General Admission (Tier 2)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Strategy</label>
+                            <select id="sim-strategy" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                                <option value="PESSIMISTIC">Pessimistic Lock</option>
+                                <option value="OPTIMISTIC">Optimistic Lock</option>
+                                <option value="REDIS_LUA" selected>Redis Lua Script</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button onclick="runConcurrencySimulation()" id="btn-run-sim" class="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-extrabold text-sm shadow-lg shadow-cyan-500/20 transition flex items-center justify-center space-x-2">
+                        <i data-lucide="flame" class="w-4 h-4"></i>
+                        <span>Launch Parallel Rush Attack</span>
+                    </button>
+
+                    <!-- Realtime Telemetry Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                        <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Successful</span>
+                            <span class="text-xl font-extrabold text-emerald-400 font-mono" id="stat-success">0</span>
+                        </div>
+                        <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Sold Out (400)</span>
+                            <span class="text-xl font-extrabold text-amber-400 font-mono" id="stat-soldout">0</span>
+                        </div>
+                        <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Blocked / 429</span>
+                            <span class="text-xl font-extrabold text-crimson font-mono" id="stat-errors">0</span>
+                        </div>
+                        <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Avg Latency</span>
+                            <span class="text-xl font-extrabold text-cyan-400 font-mono" id="stat-latency">0<span class="text-xs">ms</span></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Live Orders Ledger & Transactions Feed -->
+        <section class="bg-brand-card rounded-2xl border border-brand-border p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="receipt" class="w-5 h-5 text-slate-400"></i>
+                    <h3 class="font-display font-bold text-lg text-white">Live Transactions Feed & Audit Trail</h3>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-xs text-slate-400 font-mono" id="orders-count">0 orders recorded</span>
+                    <button onclick="clearOrdersFeed()" class="text-xs text-slate-400 hover:text-white transition">Clear feed</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="text-slate-400 border-b border-slate-800 uppercase tracking-wider font-mono text-[10px]">
+                        <tr>
+                            <th class="py-2.5 px-3">Order Number</th>
+                            <th class="py-2.5 px-3">User</th>
+                            <th class="py-2.5 px-3">Ticket</th>
+                            <th class="py-2.5 px-3">Qty</th>
+                            <th class="py-2.5 px-3">Amount</th>
+                            <th class="py-2.5 px-3">Latency</th>
+                            <th class="py-2.5 px-3">Status</th>
+                            <th class="py-2.5 px-3">Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-tbody" class="divide-y divide-slate-800/60 font-mono">
+                        <tr>
+                            <td colspan="8" class="text-center py-8 text-slate-500">No orders placed yet in this session. Start by placing an order above!</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-brand-border py-6 mt-12 bg-slate-950/40 text-center text-xs text-slate-500">
+        <p>FlashSale-Engine ⚡ Built with Spring Boot 3.3.5 & Java 21 Virtual Threads &bull; Designed by Nguyễn Văn Nhật</p>
+    </footer>
+
+    <!-- Frontend Script -->
+    <script>
+        lucide.createIcons();
+
+        let ticketsData = [];
+        let orderHistory = [];
+
+        function generateUUID() {
+            return 'key-' + Math.random().toString(36).substring(2, 10) + '-' + Date.now();
+        }
+
+        function regenerateIdempotencyKey() {
+            document.getElementById('idempotency-key').value = generateUUID();
+        }
+        regenerateIdempotencyKey();
+
+        async function fetchTickets() {
+            const refreshIcon = document.getElementById('refresh-icon');
+            if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+            try {
+                const res = await fetch('/api/v1/tickets');
+                if (!res.ok) throw new Error('Failed to fetch tickets');
+                ticketsData = await res.json();
+                renderTickets();
+                document.getElementById('last-updated-text').textContent = 'Last synced: ' + new Date().toLocaleTimeString();
+            } catch (err) {
+                console.error(err);
+            } finally {
+                if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+            }
+        }
+
+        function renderTickets() {
+            const container = document.getElementById('tickets-container');
+            if (!container) return;
+
+            container.innerHTML = ticketsData.map(t => {
+                const percent = Math.round((t.stock / t.initialStock) * 100);
+                const isLow = percent <= 20;
+                const isOut = t.stock <= 0;
+
+                return `
+                    <div class="bg-brand-card p-6 rounded-2xl border border-brand-border relative overflow-hidden transition hover:border-slate-700">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">${t.ticketCode}</span>
+                                    ${isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">SOLD OUT</span>' : ''}
+                                    ${isLow && !isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">SELLING FAST</span>' : ''}
+                                </div>
+                                <h3 class="font-display font-bold text-xl text-white mt-2">${t.eventName}</h3>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs text-slate-400 block">Unit Price</span>
+                                <span class="font-display font-extrabold text-2xl text-amber-400">$${t.price.toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 space-y-2">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-slate-400">Available Stock</span>
+                                <span class="font-mono font-bold ${isOut ? 'text-red-400' : isLow ? 'text-amber-400' : 'text-emerald-400'}">${t.stock} / ${t.initialStock} tickets (${percent}%)</span>
+                            </div>
+                            <div class="w-full h-3 rounded-full bg-slate-900 overflow-hidden border border-slate-800">
+                                <div class="h-full rounded-full transition-all duration-500 ${isOut ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-400'}" style="width: ${percent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function handleManualOrder(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit-order');
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+
+            const ticketId = Number(document.getElementById('ticket-select').value);
+            const quantity = Number(document.getElementById('ticket-qty').value);
+            const userId = document.getElementById('user-id').value;
+            const strategy = document.querySelector('input[name="strategy"]:checked').value;
+            const idempotencyKey = document.getElementById('idempotency-key').value;
+
+            const startTime = performance.now();
+
+            try {
+                const res = await fetch('/api/v1/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Idempotency-Key': idempotencyKey
+                    },
+                    body: JSON.stringify({ ticketId, userId, quantity, strategy })
+                });
+
+                const latency = Math.round(performance.now() - startTime);
+                const data = await res.json();
+
+                if (res.ok) {
+                    confetti({ particleCount: 60, spread: 60, origin: { y: 0.8 } });
+                    appendOrderLog(data.orderNumber, userId, ticketId, quantity, data.totalPrice, latency, 'CONFIRMED');
+                } else {
+                    alert('Order Failed: ' + (data.detail || data.title || 'Error occurred'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Request error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                if (!document.getElementById('keep-idempotency').checked) {
+                    regenerateIdempotencyKey();
+                }
+                fetchTickets();
+            }
+        }
+
+        async function runConcurrencySimulation() {
+            const btn = document.getElementById('btn-run-sim');
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+
+            const totalRequests = Number(document.getElementById('sim-concurrency').value);
+            const ticketId = Number(document.getElementById('sim-ticket').value);
+            const strategy = document.getElementById('sim-strategy').value;
+
+            let success = 0;
+            let soldOut = 0;
+            let errors = 0;
+            let totalLatency = 0;
+
+            const promises = [];
+
+            for (let i = 0; i < totalRequests; i++) {
+                const userId = `vu_bot_${i + 1}`;
+                const idemp = generateUUID();
+                const startTime = performance.now();
+
+                const p = fetch('/api/v1/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Idempotency-Key': idemp
+                    },
+                    body: JSON.stringify({ ticketId, userId, quantity: 1, strategy })
+                }).then(async res => {
+                    const lat = performance.now() - startTime;
+                    totalLatency += lat;
+
+                    if (res.status === 201) {
+                        success++;
+                        const order = await res.json();
+                        appendOrderLog(order.orderNumber, userId, ticketId, 1, order.totalPrice, Math.round(lat), 'CONFIRMED');
+                    } else if (res.status === 400) {
+                        soldOut++;
+                    } else {
+                        errors++;
+                    }
+                }).catch(() => {
+                    errors++;
+                });
+
+                promises.push(p);
+            }
+
+            await Promise.all(promises);
+
+            document.getElementById('stat-success').textContent = success;
+            document.getElementById('stat-soldout').textContent = soldOut;
+            document.getElementById('stat-errors').textContent = errors;
+            const avg = totalRequests > 0 ? Math.round(totalLatency / totalRequests) : 0;
+            document.getElementById('stat-latency').innerHTML = `${avg}<span class="text-xs">ms</span>`;
+
+            if (success > 0) {
+                confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+            }
+
+            btn.disabled = false;
+            btn.classList.remove('opacity-75');
+            fetchTickets();
+        }
+
+        function appendOrderLog(orderNumber, user, ticketId, qty, amount, latency, status) {
+            const tbody = document.getElementById('orders-tbody');
+            if (tbody.children[0]?.children.length === 1) {
+                tbody.innerHTML = '';
+            }
+
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-800/40 transition';
+            tr.innerHTML = `
+                <td class="py-2.5 px-3 text-amber-400 font-bold">${orderNumber || 'N/A'}</td>
+                <td class="py-2.5 px-3 text-slate-300">${user}</td>
+                <td class="py-2.5 px-3 text-slate-400">#${ticketId}</td>
+                <td class="py-2.5 px-3 text-white">${qty}</td>
+                <td class="py-2.5 px-3 text-emerald-400 font-bold">$${Number(amount || 0).toFixed(2)}</td>
+                <td class="py-2.5 px-3 text-cyan-400">${latency}ms</td>
+                <td class="py-2.5 px-3">
+                    <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">${status}</span>
+                </td>
+                <td class="py-2.5 px-3 text-slate-500">${new Date().toLocaleTimeString()}</td>
+            `;
+
+            tbody.prepend(tr);
+            orderHistory.push({ orderNumber, user, amount, latency });
+            document.getElementById('orders-count').textContent = `${orderHistory.length} orders recorded`;
+        }
+
+        function clearOrdersFeed() {
+            orderHistory = [];
+            document.getElementById('orders-tbody').innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-8 text-slate-500">No orders placed yet in this session. Start by placing an order above!</td>
+                </tr>
+            `;
+            document.getElementById('orders-count').textContent = '0 orders recorded';
+        }
+
+        function refreshData() {
+            fetchTickets();
+        }
+
+        // Auto load on init
+        fetchTickets();
+    </script>
+</body>
+</html>
