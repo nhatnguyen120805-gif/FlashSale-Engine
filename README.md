@@ -12,7 +12,7 @@
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-AMQP%200.9.1-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16%20ACID-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Build Status](https://img.shields.io/badge/Build-Passing%20(14%2F14%20Tests)-success?style=for-the-badge&logo=githubactions&logoColor=white)]()
+[![Build Status](https://github.com/nhatnguyen120805-gif/FlashSale-Engine/actions/workflows/ci.yml/badge.svg)](https://github.com/nhatnguyen120805-gif/FlashSale-Engine/actions)
 [![Zero Overselling](https://img.shields.io/badge/Overselling-0.00%25%20Verified-brightgreen?style=for-the-badge)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
@@ -315,7 +315,7 @@ Toàn bộ logic cốt lõi đã được kiểm chứng bằng bộ kiểm th�
 **Nguyễn Văn Nhật**  
 *Java Backend Software Engineer*  
 - **Email:** [nhatnguyen120805@gmail.com](mailto:nhatnguyen120805@gmail.com)  
-- **GitHub:** [@NguyenVanNhat](https://github.com/NguyenVanNhat)  
+- **GitHub:** [@nhatnguyen120805-gif](https://github.com/nhatnguyen120805-gif)  
 - **Core Competencies:** Java 21, Spring Boot 3+, High-Concurrency Distributed Systems, Redis, RabbitMQ, PostgreSQL, Event-Driven Architecture.
 
 ---
