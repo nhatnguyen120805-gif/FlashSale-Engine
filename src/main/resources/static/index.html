@@ -99,6 +99,10 @@
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span class="text-slate-300 font-mono">JDK 21 Virtual Threads</span>
                 </div>
+                <button onclick="resetAllTickets()" id="btn-reset-all" title="Khôi phục toàn bộ tồn kho về 100% và xóa dữ liệu test" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition text-xs font-semibold">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5" id="reset-icon"></i>
+                    <span>Khôi phục kho (Reset)</span>
+                </button>
                 <button onclick="refreshData(true)" title="Làm mới tồn kho" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition text-xs font-medium">
                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refresh-icon"></i>
                     <span>Đồng bộ</span>
@@ -906,6 +910,86 @@
 
         function refreshData(notify = false) {
             fetchTickets(notify);
+        }
+
+        async function resetAllTickets() {
+            const btn = document.getElementById('btn-reset-all');
+            const icon = document.getElementById('reset-icon');
+            if (btn) btn.disabled = true;
+            if (icon) icon.classList.add('animate-spin');
+
+            const startTime = performance.now();
+            try {
+                const res = await fetch('/api/v1/tickets/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const latency = Math.round(performance.now() - startTime);
+                if (!res.ok) throw new Error('Reset kho thất bại (HTTP ' + res.status + ')');
+
+                ticketsData = await res.json();
+                renderTickets();
+                populateDropdowns();
+
+                document.getElementById('stat-success').textContent = '0';
+                document.getElementById('stat-soldout').textContent = '0';
+                document.getElementById('stat-errors').textContent = '0';
+                document.getElementById('stat-latency').innerHTML = '0<span class="text-xs">ms</span>';
+
+                orderHistory = [];
+                document.getElementById('orders-tbody').innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
+                    </tr>
+                `;
+                document.getElementById('orders-count').textContent = '0 đơn hàng được ghi nhận';
+
+                const keepCheckbox = document.getElementById('keep-idempotency');
+                if (keepCheckbox) keepCheckbox.checked = false;
+                regenerateIdempotencyKey(false);
+
+                const syncTime = new Date().toLocaleTimeString('vi-VN');
+                document.getElementById('last-updated-text').textContent = 'Khôi phục lúc: ' + syncTime;
+
+                const totalStock = ticketsData.reduce((sum, t) => sum + Number(t.stock || 0), 0);
+                const stockSummary = ticketsData.map(t => `${t.ticketCode}: ${t.stock}`).join(' · ');
+
+                showToast({
+                    type: 'success',
+                    title: 'Đã khôi phục kho vé về 100%!',
+                    message: `Tổng tồn kho ${totalStock} vé đã sẵn sàng (${stockSummary}) và đã xóa toàn bộ đơn test cũ.`,
+                    badge: `HTTP 200 · ${latency}ms`,
+                    duration: 5500
+                });
+
+                renderInlineFeedback('manual-order-feedback', {
+                    type: 'success',
+                    title: 'Đã reset phiên test thành công',
+                    message: 'Tất cả vé đã trở về 100% số lượng ban đầu, sẵn sàng test lại từ đầu.',
+                    badge: 'RESET 100%',
+                    details: [
+                        ['Tổng vé', `${totalStock} vé`],
+                        ['Độ trễ', `${latency} ms`]
+                    ]
+                });
+                renderInlineFeedback('sim-feedback', {
+                    type: 'info',
+                    title: 'Bộ đếm Race Condition Lab đã được đặt lại',
+                    message: 'Chọn số luồng (20 / 50 / 100) và bấm "Bắn Tải Tranh Chấp Đồng Thời" để kiểm thử lại.',
+                    badge: 'READY'
+                });
+            } catch (err) {
+                console.error(err);
+                showToast({
+                    type: 'error',
+                    title: 'Không thể khôi phục kho vé',
+                    message: err.message || 'Lỗi kết nối máy chủ',
+                    badge: 'ERROR'
+                });
+            } finally {
+                if (btn) btn.disabled = false;
+                if (icon) icon.classList.remove('animate-spin');
+            }
         }
 
         // Auto load on init

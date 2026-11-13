@@ -108,4 +108,9 @@ public class IdempotencyService {
             }
         }
     }
+
+    public void clearLocalCache() {
+        localLocks.clear();
+        localCompleted.clear();
+    }
 }

@@ -29,4 +29,9 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Ticket t SET t.stock = t.stock - :quantity, t.version = t.version + 1 WHERE t.id = :id AND t.stock >= :quantity")
     int deductStockDirect(@Param("id") Long id, @Param("quantity") int quantity);
+
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Ticket t SET t.stock = t.initialStock, t.version = t.version + 1")
+    int resetAllStockToInitial();
 }
