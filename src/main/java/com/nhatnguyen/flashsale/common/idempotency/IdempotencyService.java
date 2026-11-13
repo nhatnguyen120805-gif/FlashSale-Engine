@@ -31,36 +31,45 @@ public class IdempotencyService {
 
     public boolean acquire(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            return true; // No key provided, bypass idempotency lock
+            return true;
         }
-        String redisKey = "idempotency:" + idempotencyKey;
-        // Acquire lock with 60s timeout to handle crash recovery
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(redisKey, PROCESSING_STATUS, Duration.ofSeconds(60));
-        return Boolean.TRUE.equals(acquired);
+        try {
+            String redisKey = "idempotency:" + idempotencyKey;
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(redisKey, PROCESSING_STATUS, Duration.ofSeconds(60));
+            return Boolean.TRUE.equals(acquired);
+        } catch (Exception ex) {
+            log.warn("Redis unreachable in IdempotencyService.acquire, failing open: {}", ex.getMessage());
+            return true;
+        }
     }
 
     public boolean isProcessing(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             return false;
         }
-        String redisKey = "idempotency:" + idempotencyKey;
-        String val = redisTemplate.opsForValue().get(redisKey);
-        return PROCESSING_STATUS.equals(val);
+        try {
+            String redisKey = "idempotency:" + idempotencyKey;
+            String val = redisTemplate.opsForValue().get(redisKey);
+            return PROCESSING_STATUS.equals(val);
+        } catch (Exception ex) {
+            log.warn("Redis unreachable in IdempotencyService.isProcessing: {}", ex.getMessage());
+            return false;
+        }
     }
 
     public Optional<OrderResponse> getCompletedResponse(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             return Optional.empty();
         }
-        String redisKey = "idempotency:" + idempotencyKey;
-        String val = redisTemplate.opsForValue().get(redisKey);
-        if (val == null || PROCESSING_STATUS.equals(val)) {
-            return Optional.empty();
-        }
         try {
+            String redisKey = "idempotency:" + idempotencyKey;
+            String val = redisTemplate.opsForValue().get(redisKey);
+            if (val == null || PROCESSING_STATUS.equals(val)) {
+                return Optional.empty();
+            }
             return Optional.of(objectMapper.readValue(val, OrderResponse.class));
-        } catch (JsonProcessingException e) {
-            log.error("Failed to deserialize cached idempotency response for key={}", idempotencyKey, e);
+        } catch (Exception ex) {
+            log.warn("Redis unreachable in IdempotencyService.getCompletedResponse: {}", ex.getMessage());
             return Optional.empty();
         }
     }
@@ -69,20 +78,24 @@ public class IdempotencyService {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             return;
         }
-        String redisKey = "idempotency:" + idempotencyKey;
         try {
+            String redisKey = "idempotency:" + idempotencyKey;
             String json = objectMapper.writeValueAsString(response);
             redisTemplate.opsForValue().set(redisKey, json, Duration.ofSeconds(idempotencyTtlSeconds));
             log.debug("Saved idempotency result for key={}, TTL={}s", idempotencyKey, idempotencyTtlSeconds);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize idempotency response for key={}", idempotencyKey, e);
+        } catch (Exception ex) {
+            log.warn("Redis unreachable in IdempotencyService.saveCompletedResponse: {}", ex.getMessage());
         }
     }
 
     public void release(String idempotencyKey) {
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            redisTemplate.delete("idempotency:" + idempotencyKey);
-            log.debug("Released idempotency key={} after failure", idempotencyKey);
+            try {
+                redisTemplate.delete("idempotency:" + idempotencyKey);
+                log.debug("Released idempotency key={} after failure", idempotencyKey);
+            } catch (Exception ex) {
+                log.warn("Redis unreachable in IdempotencyService.release: {}", ex.getMessage());
+            }
         }
     }
 }

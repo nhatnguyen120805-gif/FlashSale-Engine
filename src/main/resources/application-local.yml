@@ -1,0 +1,48 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: flashsale-engine
+  threads:
+    virtual:
+      enabled: true
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  datasource:
+    url: jdbc:h2:mem:flashsale_db;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    open-in-view: false
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+
+flashsale:
+  rabbitmq:
+    exchange: flashsale.order.exchange
+    queue: flashsale.order.create.queue
+    routing-key: flashsale.order.create
+  rate-limit:
+    capacity: 1000
+    refill-tokens-per-second: 500
+  idempotency:
+    ttl-seconds: 86400
