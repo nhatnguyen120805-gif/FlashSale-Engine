@@ -1,15 +1,18 @@
-import docx
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import nsdecls, qn
 import os
+
+import docx
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
+from docx.shared import Inches, Pt, RGBColor
+
 
 def set_cell_background(cell, fill_hex):
     tcPr = cell._tc.get_or_add_tcPr()
     shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
     tcPr.append(shd)
+
 
 def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
     tcPr = cell._tc.get_or_add_tcPr()
@@ -23,9 +26,10 @@ def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
     ''')
     tcPr.append(tcMar)
 
+
 def create_report():
     doc = docx.Document()
-    
+
     # Page Margins (Normal: 1 inch = 1440 dxa)
     for section in doc.sections:
         section.top_margin = Inches(0.8)
@@ -38,7 +42,7 @@ def create_report():
     SLATE = RGBColor(89, 89, 89)
     GREEN = RGBColor(46, 125, 50)
     DARK_TEXT = RGBColor(38, 38, 38)
-    
+
     # Header Title
     title_p = doc.add_paragraph()
     title_p.paragraph_format.space_before = Pt(0)
@@ -58,7 +62,9 @@ def create_report():
     sub_p = doc.add_paragraph()
     sub_p.paragraph_format.space_before = Pt(2)
     sub_p.paragraph_format.space_after = Pt(14)
-    r_sub = sub_p.add_run("High-Concurrency Zero-Overselling Engine Verification & 5-Tier Squad Audit")
+    r_sub = sub_p.add_run(
+        "High-Concurrency Zero-Overselling Engine Verification & 5-Tier Squad Audit"
+    )
     r_sub.font.name = "Arial"
     r_sub.font.size = Pt(11)
     r_sub.font.italic = True
@@ -68,10 +74,30 @@ def create_report():
     meta_table = doc.add_table(rows=4, cols=4)
     meta_table.alignment = WD_TABLE_ALIGNMENT.CENTER
     meta_data = [
-        [("Dự án", True), ("FlashSale-Engine v1.0.0", False), ("Tác giả / Dev", True), ("Nguyễn Văn Nhật", False)],
-        [("Tech Stack", True), ("Java 21, Spring Boot 3.3.5, Redis, RabbitMQ", False), ("Ngày kiểm thử", True), ("13/11/2026", False)],
-        [("Môi trường", True), ("JDK 22, Virtual Threads, H2 / PostgreSQL", False), ("Độ bao phủ DoD", True), ("100% Pass (14/14 Unit/Int Tests)", False)],
-        [("Phán quyết chung", True), ("SHIP / APPROVED FOR PRODUCTION", False), ("Tỷ lệ Bán Âm", True), ("0.00% (Zero Overselling Verified)", False)]
+        [
+            ("Dự án", True),
+            ("FlashSale-Engine v1.0.0", False),
+            ("Tác giả / Dev", True),
+            ("Nguyễn Văn Nhật", False),
+        ],
+        [
+            ("Tech Stack", True),
+            ("Java 21, Spring Boot 3.3.5, Redis, RabbitMQ", False),
+            ("Ngày kiểm thử", True),
+            ("13/11/2026", False),
+        ],
+        [
+            ("Môi trường", True),
+            ("JDK 22, Virtual Threads, H2 / PostgreSQL", False),
+            ("Độ bao phủ DoD", True),
+            ("100% Pass (14/14 Unit/Int Tests)", False),
+        ],
+        [
+            ("Phán quyết chung", True),
+            ("SHIP / APPROVED FOR PRODUCTION", False),
+            ("Tỷ lệ Bán Âm", True),
+            ("0.00% (Zero Overselling Verified)", False),
+        ],
     ]
     col_widths = [Inches(1.5), Inches(2.2), Inches(1.5), Inches(1.8)]
     for r_idx, row in enumerate(meta_table.rows):
@@ -130,7 +156,12 @@ def create_report():
 
     squad_table = doc.add_table(rows=6, cols=4)
     squad_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    squad_headers = ["Trạm Kiểm Soát", "Chuyên Gia Đảm Trách", "Nội Dung Thẩm Định", "Phán Quyết"]
+    squad_headers = [
+        "Trạm Kiểm Soát",
+        "Chuyên Gia Đảm Trách",
+        "Nội Dung Thẩm Định",
+        "Phán Quyết",
+    ]
     for c_idx, text in enumerate(squad_headers):
         cell = squad_table.rows[0].cells[c_idx]
         cell.text = text
@@ -144,11 +175,36 @@ def create_report():
         set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
 
     squad_data = [
-        ("Trạm 1: AppSec Gate", "appsec-auditor", "Quét Secret hardcode, AST Taint SQLi/IDOR, Rate Limiting Token Bucket, kiểm tra xác thực tham số đầu vào.", "SECURE (PASS)"),
-        ("Trạm 2: DB Architecture", "db-architect", "Phân tích nguy cơ cạn kiệt HikariCP Connection Pool, cấu trúc khóa dòng (Pessimistic/Optimistic), loại bỏ N+1 query.", "OPTIMIZED (PASS)"),
-        ("Trạm 3: Silent Failure", "silent-failure-hunter", "Quét sạch toàn bộ khối catch rỗng. Kiểm tra Compensating Transaction (revert stock khi MQ đứt) và logging nghiệp vụ.", "CLEAN (PASS)"),
-        ("Trạm 4: Runtime Browser QA", "browser-qa", "Kiểm thử live giao diện Web SPA: Console error (0 lỗi), responsive 3 thiết bị (Mobile 375px, Desktop 1440px), định dạng tiền tệ VNĐ.", "SHIP (PASS)"),
-        ("Trạm 5: Delivery Gatekeeper", "delivery-gate", "Biên dịch sạch, 14/14 automated tests pass 100%, 100 Virtual Threads stress test không bán âm, không flaky test.", "PASS (ACCEPTED)")
+        (
+            "Trạm 1: AppSec Gate",
+            "appsec-auditor",
+            "Quét Secret hardcode, AST Taint SQLi/IDOR, Rate Limiting Token Bucket, kiểm tra xác thực tham số đầu vào.",
+            "SECURE (PASS)",
+        ),
+        (
+            "Trạm 2: DB Architecture",
+            "db-architect",
+            "Phân tích nguy cơ cạn kiệt HikariCP Connection Pool, cấu trúc khóa dòng (Pessimistic/Optimistic), loại bỏ N+1 query.",
+            "OPTIMIZED (PASS)",
+        ),
+        (
+            "Trạm 3: Silent Failure",
+            "silent-failure-hunter",
+            "Quét sạch toàn bộ khối catch rỗng. Kiểm tra Compensating Transaction (revert stock khi MQ đứt) và logging nghiệp vụ.",
+            "CLEAN (PASS)",
+        ),
+        (
+            "Trạm 4: Runtime Browser QA",
+            "browser-qa",
+            "Kiểm thử live giao diện Web SPA: Console error (0 lỗi), responsive 3 thiết bị (Mobile 375px, Desktop 1440px), định dạng tiền tệ VNĐ.",
+            "SHIP (PASS)",
+        ),
+        (
+            "Trạm 5: Delivery Gatekeeper",
+            "delivery-gate",
+            "Biên dịch sạch, 14/14 automated tests pass 100%, 100 Virtual Threads stress test không bán âm, không flaky test.",
+            "PASS (ACCEPTED)",
+        ),
     ]
     squad_col_widths = [Inches(1.4), Inches(1.5), Inches(3.0), Inches(1.3)]
     for r_idx, row_vals in enumerate(squad_data):
@@ -185,7 +241,13 @@ def create_report():
 
     test_table = doc.add_table(rows=6, cols=5)
     test_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    test_headers = ["Lớp Kiểm Thử (Test Class)", "Số Test Cases", "Mô Hình / Mục Tiêu", "Thời Gian Chạy", "Trạng Thái"]
+    test_headers = [
+        "Lớp Kiểm Thử (Test Class)",
+        "Số Test Cases",
+        "Mô Hình / Mục Tiêu",
+        "Thời Gian Chạy",
+        "Trạng Thái",
+    ]
     for c_idx, text in enumerate(test_headers):
         cell = test_table.rows[0].cells[c_idx]
         cell.text = text
@@ -199,11 +261,41 @@ def create_report():
         set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
 
     test_data = [
-        ("FlashSaleConcurrencyTest", "2", "100 Virtual Threads tranh chấp đồng thời 10 vé (Pessimistic & Optimistic)", "42.82 s", "PASSED (0% Oversell)"),
-        ("IdempotencyServiceTest", "4", "Distributed Lock, SETNX, TTL Expiration, Concurrency collision", "9.98 s", "PASSED (100%)"),
-        ("RateLimiterServiceTest", "3", "Token Bucket, Burst traffic rejection (429), Redis fail-open", "0.18 s", "PASSED (100%)"),
-        ("PessimisticLockStrategyTest", "3", "DB Row-level Exclusive Lock, Zero stock rejection, Rollback", "0.31 s", "PASSED (100%)"),
-        ("RedisLuaLockStrategyTest", "2", "Atomic Lua in-memory decrement, Insufficient stock validation", "0.03 s", "PASSED (100%)")
+        (
+            "FlashSaleConcurrencyTest",
+            "2",
+            "100 Virtual Threads tranh chấp đồng thời 10 vé (Pessimistic & Optimistic)",
+            "42.82 s",
+            "PASSED (0% Oversell)",
+        ),
+        (
+            "IdempotencyServiceTest",
+            "4",
+            "Distributed Lock, SETNX, TTL Expiration, Concurrency collision",
+            "9.98 s",
+            "PASSED (100%)",
+        ),
+        (
+            "RateLimiterServiceTest",
+            "3",
+            "Token Bucket, Burst traffic rejection (429), Redis fail-open",
+            "0.18 s",
+            "PASSED (100%)",
+        ),
+        (
+            "PessimisticLockStrategyTest",
+            "3",
+            "DB Row-level Exclusive Lock, Zero stock rejection, Rollback",
+            "0.31 s",
+            "PASSED (100%)",
+        ),
+        (
+            "RedisLuaLockStrategyTest",
+            "2",
+            "Atomic Lua in-memory decrement, Insufficient stock validation",
+            "0.03 s",
+            "PASSED (100%)",
+        ),
     ]
     test_col_widths = [Inches(2.2), Inches(0.9), Inches(2.6), Inches(1.0), Inches(1.4)]
     for r_idx, row_vals in enumerate(test_data):
@@ -244,27 +336,35 @@ def create_report():
     )
 
     # Insert Image 1: Sold out test
-    img_soldout = r"c:\LapTrinh\Projects\FlashSale-Engine\docs\images\flashsale-soldout-test.png"
+    img_soldout = (
+        r"c:\LapTrinh\Projects\FlashSale-Engine\docs\images\flashsale-soldout-test.png"
+    )
     if os.path.exists(img_soldout):
         p_img = doc.add_paragraph()
         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_picture(img_soldout, width=Inches(6.5))
         caption = doc.add_paragraph()
         caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r_cap = caption.add_run("Hình 1: Thực chứng bắn 50 requests đồng thời khi tồn kho còn 47 vé -> 47 đơn thành công, 3 đơn bị chặn sạch, kho về đúng 0.")
+        r_cap = caption.add_run(
+            "Hình 1: Thực chứng bắn 50 requests đồng thời khi tồn kho còn 47 vé -> 47 đơn thành công, 3 đơn bị chặn sạch, kho về đúng 0."
+        )
         r_cap.font.size = Pt(9)
         r_cap.font.italic = True
         r_cap.font.color.rgb = SLATE
 
     # Insert Image 2: Live UI with VN concerts
-    img_live = r"c:\LapTrinh\Projects\FlashSale-Engine\docs\images\flashsale-live-ui.png"
+    img_live = (
+        r"c:\LapTrinh\Projects\FlashSale-Engine\docs\images\flashsale-live-ui.png"
+    )
     if os.path.exists(img_live):
         p_img2 = doc.add_paragraph()
         p_img2.alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_picture(img_live, width=Inches(6.5))
         caption2 = doc.add_paragraph()
         caption2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r_cap2 = caption2.add_run("Hình 2: Giao diện Web SPA thời gian thực hiển thị vé Concert Sơn Tùng M-TP, Anh Trai Vượt Ngàn Chông Gai, Hà Anh Tuấn với định dạng VNĐ chuẩn.")
+        r_cap2 = caption2.add_run(
+            "Hình 2: Giao diện Web SPA thời gian thực hiển thị vé Concert Sơn Tùng M-TP, Anh Trai Vượt Ngàn Chông Gai, Hà Anh Tuấn với định dạng VNĐ chuẩn."
+        )
         r_cap2.font.size = Pt(9)
         r_cap2.font.italic = True
         r_cap2.font.color.rgb = SLATE
@@ -277,7 +377,9 @@ def create_report():
         doc.add_picture(img_mobile, width=Inches(3.2))
         caption3 = doc.add_paragraph()
         caption3.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r_cap3 = caption3.add_run("Hình 3: Kiểm thử giao diện trên thiết bị di động (Mobile 375px) — bố cục đáp ứng hoàn hảo.")
+        r_cap3 = caption3.add_run(
+            "Hình 3: Kiểm thử giao diện trên thiết bị di động (Mobile 375px) — bố cục đáp ứng hoàn hảo."
+        )
         r_cap3.font.size = Pt(9)
         r_cap3.font.italic = True
         r_cap3.font.color.rgb = SLATE
@@ -294,7 +396,12 @@ def create_report():
 
     bench_table = doc.add_table(rows=7, cols=4)
     bench_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    bench_headers = ["Chỉ Số Kỹ Thuật", "Pessimistic Lock", "Optimistic Lock", "Redis Atomic Lua (Engine)"]
+    bench_headers = [
+        "Chỉ Số Kỹ Thuật",
+        "Pessimistic Lock",
+        "Optimistic Lock",
+        "Redis Atomic Lua (Engine)",
+    ]
     for c_idx, text in enumerate(bench_headers):
         cell = bench_table.rows[0].cells[c_idx]
         cell.text = text
@@ -308,12 +415,27 @@ def create_report():
         set_cell_margins(cell, top=100, bottom=100, left=100, right=100)
 
     bench_data = [
-        ("Peak Throughput (RPS)", "~320 req/s", "~180 req/s", "5,450+ req/s (Vượt trội)"),
+        (
+            "Peak Throughput (RPS)",
+            "~320 req/s",
+            "~180 req/s",
+            "5,450+ req/s (Vượt trội)",
+        ),
         ("Latency p50 (Median)", "420 ms", "65 ms", "3.8 ms (Sub-5ms)"),
         ("Latency p95", "1,850 ms", "120 ms (fail-fast)", "11.2 ms"),
         ("Tỷ Lệ Bán Âm (Overselling)", "0.00%", "0.00%", "0.00% (Tuyệt đối)"),
-        ("Tỷ Lệ Đụng Độ & Hủy Request", "0% (Xếp hàng chờ)", "> 85% (Version Collision)", "0% (Atomic In-Memory)"),
-        ("Khả Năng Mở Rộng Ngang", "Kém (Nghẽn tại DB Master)", "Kém (Retry Storm)", "Cực cao (Scale horizontally)")
+        (
+            "Tỷ Lệ Đụng Độ & Hủy Request",
+            "0% (Xếp hàng chờ)",
+            "> 85% (Version Collision)",
+            "0% (Atomic In-Memory)",
+        ),
+        (
+            "Khả Năng Mở Rộng Ngang",
+            "Kém (Nghẽn tại DB Master)",
+            "Kém (Retry Storm)",
+            "Cực cao (Scale horizontally)",
+        ),
     ]
     bench_col_widths = [Inches(2.2), Inches(1.5), Inches(1.5), Inches(2.0)]
     for r_idx, row_vals in enumerate(bench_data):
@@ -356,7 +478,11 @@ def create_report():
 
     sign_table = doc.add_table(rows=2, cols=3)
     sign_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    sign_headers = ["Lead QA Engineer", "AppSec Security Auditor", "Chief Software Architect"]
+    sign_headers = [
+        "Lead QA Engineer",
+        "AppSec Security Auditor",
+        "Chief Software Architect",
+    ]
     for c_idx, text in enumerate(sign_headers):
         cell = sign_table.rows[0].cells[c_idx]
         cell.text = text
@@ -365,7 +491,7 @@ def create_report():
         run.font.bold = True
         run.font.color.rgb = NAVY
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
+
     sign_names = ["Nguyễn Văn Nhật", "AppSec Subagent Gate", "Delivery Gatekeeper"]
     for c_idx, text in enumerate(sign_names):
         cell = sign_table.rows[1].cells[c_idx]
@@ -379,6 +505,7 @@ def create_report():
     out_path = r"c:\LapTrinh\Projects\FlashSale-Engine\docs\FlashSale_Engine_QA_Test_Report.docx"
     doc.save(out_path)
     print(f"[OK] Word report generated at: {out_path}")
+
 
 if __name__ == "__main__":
     create_report()
