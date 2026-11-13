@@ -51,9 +51,32 @@
         .glow-cyan {
             box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.25);
         }
+        @keyframes toastSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(24px) scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
+        }
+        .toast-enter {
+            animation: toastSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes rowHighlight {
+            0% { background-color: rgba(6, 182, 212, 0.28); }
+            100% { background-color: transparent; }
+        }
+        .row-flash {
+            animation: rowHighlight 1.6s ease-out;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+
+    <!-- Toast Notification Stack -->
+    <div id="toast-container" aria-live="polite" class="fixed top-20 right-4 z-[60] flex flex-col gap-3 max-w-md w-[calc(100%-2rem)] sm:w-full pointer-events-none"></div>
 
     <!-- Top Navigation -->
     <header class="border-b border-brand-border bg-brand-dark/90 backdrop-blur-md sticky top-0 z-50">
@@ -76,7 +99,7 @@
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span class="text-slate-300 font-mono">JDK 21 Virtual Threads</span>
                 </div>
-                <button onclick="refreshData()" title="Làm mới tồn kho" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition text-xs font-medium">
+                <button onclick="refreshData(true)" title="Làm mới tồn kho" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition text-xs font-medium">
                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refresh-icon"></i>
                     <span>Đồng bộ</span>
                 </button>
@@ -170,7 +193,7 @@
                         <div class="space-y-2 pt-1">
                             <div class="flex items-center justify-between text-xs">
                                 <span class="text-slate-400 font-medium">Mã Giao Dịch (X-Idempotency-Key)</span>
-                                <button type="button" onclick="regenerateIdempotencyKey()" class="text-amber-400 hover:underline text-[11px]">Tạo mã mới</button>
+                                <button type="button" onclick="regenerateIdempotencyKey(true)" class="text-amber-400 hover:underline text-[11px]">Tạo mã mới</button>
                             </div>
                             <input type="text" id="idempotency-key" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-300 font-mono focus:outline-none focus:border-amber-500 transition">
                             <div class="flex items-center space-x-2 pt-1">
@@ -183,6 +206,9 @@
                             <span>Xác Nhận Đặt Vé Ngay</span>
                             <i data-lucide="arrow-right" class="w-4 h-4"></i>
                         </button>
+
+                        <!-- Inline Notification Banner for Manual Order -->
+                        <div id="manual-order-feedback" class="hidden" aria-live="polite"></div>
                     </form>
                 </div>
             </section>
@@ -251,6 +277,9 @@
                             <span class="text-xl font-extrabold text-cyan-400 font-mono" id="stat-latency">0<span class="text-xs">ms</span></span>
                         </div>
                     </div>
+
+                    <!-- Inline Notification Banner for Concurrency Simulator -->
+                    <div id="sim-feedback" class="hidden" aria-live="polite"></div>
                 </div>
             </section>
         </div>
@@ -304,6 +333,115 @@
 
         let ticketsData = [];
         let orderHistory = [];
+        let toastSeq = 0;
+
+        const FEEDBACK_STYLES = {
+            success: {
+                container: 'bg-emerald-950/90 border-emerald-500/40 text-emerald-100',
+                badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+                title: 'text-emerald-300',
+                iconBg: 'bg-emerald-500/20 text-emerald-400',
+                icon: '✓'
+            },
+            info: {
+                container: 'bg-cyan-950/90 border-cyan-500/40 text-cyan-100',
+                badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+                title: 'text-cyan-300',
+                iconBg: 'bg-cyan-500/20 text-cyan-400',
+                icon: '🛡'
+            },
+            warning: {
+                container: 'bg-amber-950/90 border-amber-500/40 text-amber-100',
+                badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                title: 'text-amber-300',
+                iconBg: 'bg-amber-500/20 text-amber-400',
+                icon: '!'
+            },
+            error: {
+                container: 'bg-red-950/90 border-red-500/40 text-red-100',
+                badge: 'bg-red-500/20 text-red-300 border-red-500/40',
+                title: 'text-red-300',
+                iconBg: 'bg-red-500/20 text-red-400',
+                icon: '✕'
+            }
+        };
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function showToast({ type = 'info', title, message, badge = '', duration = 5500 }) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const style = FEEDBACK_STYLES[type] || FEEDBACK_STYLES.info;
+            const id = 'toast-' + (++toastSeq);
+            const toast = document.createElement('div');
+            toast.id = id;
+            toast.setAttribute('role', 'status');
+            toast.className = `pointer-events-auto toast-enter rounded-2xl border backdrop-blur-md shadow-2xl p-4 flex items-start gap-3 ${style.container}`;
+            toast.innerHTML = `
+                <div class="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 ${style.iconBg}">${style.icon}</div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <span class="font-display font-bold text-xs sm:text-sm ${style.title}">${escapeHtml(title)}</span>
+                        ${badge ? `<span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded border ${style.badge}">${escapeHtml(badge)}</span>` : ''}
+                    </div>
+                    <p class="text-xs text-slate-200/90 mt-1 leading-relaxed break-words">${escapeHtml(message)}</p>
+                </div>
+                <button type="button" onclick="dismissToast('${id}')" aria-label="Đóng thông báo" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded transition shrink-0">✕</button>
+            `;
+
+            container.prepend(toast);
+            while (container.children.length > 4) {
+                container.lastElementChild.remove();
+            }
+
+            if (duration > 0) {
+                setTimeout(() => dismissToast(id), duration);
+            }
+        }
+
+        function dismissToast(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+            el.style.opacity = '0';
+            el.style.transform = 'translateX(16px)';
+            setTimeout(() => el.remove(), 200);
+        }
+
+        function renderInlineFeedback(targetId, { type = 'info', title, message, badge = '', details = [] }) {
+            const el = document.getElementById(targetId);
+            if (!el) return;
+
+            const style = FEEDBACK_STYLES[type] || FEEDBACK_STYLES.info;
+            const detailHtml = details.length > 0
+                ? `<div class="mt-2.5 pt-2.5 border-t border-white/10 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] font-mono">
+                    ${details.map(([k, v]) => `<div><span class="text-slate-400">${escapeHtml(k)}:</span> <span class="text-white font-semibold">${escapeHtml(v)}</span></div>`).join('')}
+                   </div>`
+                : '';
+
+            el.className = `rounded-xl border p-3.5 transition-all ${style.container}`;
+            el.innerHTML = `
+                <div class="flex items-start gap-2.5">
+                    <div class="w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${style.iconBg}">${style.icon}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                            <span class="font-display font-bold text-xs ${style.title}">${escapeHtml(title)}</span>
+                            ${badge ? `<span class="text-[10px] font-mono px-2 py-0.5 rounded border ${style.badge}">${escapeHtml(badge)}</span>` : ''}
+                        </div>
+                        <p class="text-xs text-slate-200/90 mt-1 leading-relaxed break-words">${escapeHtml(message)}</p>
+                        ${detailHtml}
+                    </div>
+                </div>
+            `;
+        }
 
         // Chuyển đổi định dạng VNĐ chuẩn: ví dụ 3.500.000 ₫
         function formatVND(amount) {
@@ -315,25 +453,54 @@
             return 'VN-IDEMP-' + Math.random().toString(36).substring(2, 9).toUpperCase() + '-' + Date.now();
         }
 
-        function regenerateIdempotencyKey() {
-            document.getElementById('idempotency-key').value = generateUUID();
+        function regenerateIdempotencyKey(notify = false) {
+            const nextKey = generateUUID();
+            document.getElementById('idempotency-key').value = nextKey;
+            if (notify) {
+                showToast({
+                    type: 'info',
+                    title: 'Đã tạo mã giao dịch mới',
+                    message: `X-Idempotency-Key: ${nextKey}`,
+                    badge: 'IDEMPOTENCY KEY',
+                    duration: 3000
+                });
+            }
         }
-        regenerateIdempotencyKey();
+        regenerateIdempotencyKey(false);
 
-        async function fetchTickets() {
+        async function fetchTickets(showSyncToast = false) {
             const refreshIcon = document.getElementById('refresh-icon');
             if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
             try {
                 // Thêm timestamp để chặn hoàn toàn trình duyệt lưu cache file cũ
                 const res = await fetch('/api/v1/tickets?_t=' + Date.now());
-                if (!res.ok) throw new Error('Không thể tải danh sách vé');
+                if (!res.ok) throw new Error('Không thể tải danh sách vé (HTTP ' + res.status + ')');
                 ticketsData = await res.json();
                 renderTickets();
                 populateDropdowns();
-                document.getElementById('last-updated-text').textContent = 'Đồng bộ lúc: ' + new Date().toLocaleTimeString('vi-VN');
+                const syncTime = new Date().toLocaleTimeString('vi-VN');
+                document.getElementById('last-updated-text').textContent = 'Đồng bộ lúc: ' + syncTime;
+                if (showSyncToast) {
+                    const totalLeft = ticketsData.reduce((sum, t) => sum + Number(t.stock || 0), 0);
+                    showToast({
+                        type: 'success',
+                        title: 'Đã đồng bộ tồn kho realtime',
+                        message: `Cập nhật ${ticketsData.length} sự kiện lúc ${syncTime}. Tổng vé khả dụng: ${totalLeft}.`,
+                        badge: 'HTTP 200',
+                        duration: 3200
+                    });
+                }
             } catch (err) {
                 console.error(err);
+                if (showSyncToast) {
+                    showToast({
+                        type: 'error',
+                        title: 'Đồng bộ tồn kho thất bại',
+                        message: err.message,
+                        badge: 'NETWORK ERROR'
+                    });
+                }
             } finally {
                 if (refreshIcon) refreshIcon.classList.remove('animate-spin');
             }
@@ -345,12 +512,46 @@
 
             if (!selectOrder || !selectSim || ticketsData.length === 0) return;
 
+            const prevOrder = selectOrder.value;
+            const prevSim = selectSim.value;
+
             const optionsHtml = ticketsData.map(t => `
-                <option value="${t.id}">${t.eventName} — ${formatVND(t.price)} (Còn: ${t.stock})</option>
+                <option value="${t.id}">${escapeHtml(t.eventName)} — ${formatVND(t.price)} (Còn: ${t.stock})</option>
             `).join('');
 
             selectOrder.innerHTML = optionsHtml;
             selectSim.innerHTML = optionsHtml;
+
+            if (ticketsData.some(t => String(t.id) === prevOrder)) selectOrder.value = prevOrder;
+            if (ticketsData.some(t => String(t.id) === prevSim)) selectSim.value = prevSim;
+        }
+
+        function quickSelectTicket(ticketId) {
+            const t = ticketsData.find(item => item.id === ticketId);
+            if (!t) return;
+
+            const selectOrder = document.getElementById('ticket-select');
+            const selectSim = document.getElementById('sim-ticket');
+            if (selectOrder) selectOrder.value = String(ticketId);
+            if (selectSim) selectSim.value = String(ticketId);
+
+            if (t.stock <= 0) {
+                showToast({
+                    type: 'warning',
+                    title: 'Sự kiện đã hết vé',
+                    message: `"${t.eventName}" hiện còn 0 vé. Bạn vẫn có thể bấm thử để kiểm chứng backend chặn HTTP 400 Sold Out.`,
+                    badge: t.ticketCode,
+                    duration: 4500
+                });
+            } else {
+                showToast({
+                    type: 'info',
+                    title: 'Đã chọn vé vào form đặt hàng',
+                    message: `${t.eventName} (${formatVND(t.price)}) — còn ${t.stock} vé khả dụng.`,
+                    badge: t.ticketCode,
+                    duration: 3200
+                });
+            }
         }
 
         function renderTickets() {
@@ -367,13 +568,13 @@
                         <div>
                             <!-- Header thẻ vé: Mã vé + Trạng thái -->
                             <div class="flex items-center justify-between">
-                                <span class="text-[11px] font-mono font-semibold px-2.5 py-1 rounded bg-slate-800 text-amber-400 border border-slate-700">${t.ticketCode}</span>
+                                <span class="text-[11px] font-mono font-semibold px-2.5 py-1 rounded bg-slate-800 text-amber-400 border border-slate-700">${escapeHtml(t.ticketCode)}</span>
                                 ${isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">HẾT VÉ</span>' : ''}
                                 ${isLow && !isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">SẮP HẾT VÉ</span>' : ''}
                             </div>
                             
                             <!-- Tên sự kiện (độc lập, không bị đè chữ) -->
-                            <h3 class="font-display font-bold text-base sm:text-lg text-white mt-3 min-h-[48px] leading-snug">${t.eventName}</h3>
+                            <h3 class="font-display font-bold text-base sm:text-lg text-white mt-3 min-h-[48px] leading-snug">${escapeHtml(t.eventName)}</h3>
                             
                             <!-- Giá niêm yết bằng VNĐ -->
                             <div class="mt-3 pt-3 border-t border-slate-800/80 flex items-baseline justify-between">
@@ -383,14 +584,19 @@
                         </div>
 
                         <!-- Thanh tiến trình tồn kho -->
-                        <div class="mt-6 space-y-2">
-                            <div class="flex justify-between text-xs">
-                                <span class="text-slate-400">Tồn kho khả dụng</span>
-                                <span class="font-mono font-bold ${isOut ? 'text-red-400' : isLow ? 'text-amber-400' : 'text-emerald-400'}">${t.stock} / ${t.initialStock} vé (${percent}%)</span>
+                        <div class="mt-6 space-y-3">
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-xs">
+                                    <span class="text-slate-400">Tồn kho khả dụng</span>
+                                    <span class="font-mono font-bold ${isOut ? 'text-red-400' : isLow ? 'text-amber-400' : 'text-emerald-400'}">${t.stock} / ${t.initialStock} vé (${percent}%)</span>
+                                </div>
+                                <div class="w-full h-3 rounded-full bg-slate-900 overflow-hidden border border-slate-800">
+                                    <div class="h-full rounded-full transition-all duration-500 ${isOut ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-400'}" style="width: ${percent}%"></div>
+                                </div>
                             </div>
-                            <div class="w-full h-3 rounded-full bg-slate-900 overflow-hidden border border-slate-800">
-                                <div class="h-full rounded-full transition-all duration-500 ${isOut ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-400'}" style="width: ${percent}%"></div>
-                            </div>
+                            <button type="button" onclick="quickSelectTicket(${t.id})" class="w-full py-2 rounded-xl text-xs font-semibold border transition ${isOut ? 'bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-300' : 'bg-slate-800/80 hover:bg-amber-500/15 border-slate-700 hover:border-amber-500/40 text-slate-200 hover:text-amber-300'}">
+                                ${isOut ? 'Hết vé (Chọn để test 400)' : 'Chọn đặt vé này'}
+                            </button>
                         </div>
                     </div>
                 `;
@@ -400,14 +606,17 @@
         async function handleManualOrder(e) {
             e.preventDefault();
             const btn = document.getElementById('btn-submit-order');
+            const btnOriginalHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.classList.add('opacity-75');
+            btn.classList.add('opacity-75', 'cursor-wait');
+            btn.innerHTML = '<span>Đang xử lý giao dịch...</span>';
 
             const ticketId = Number(document.getElementById('ticket-select').value);
             const quantity = Number(document.getElementById('ticket-qty').value);
-            const userId = document.getElementById('user-id').value;
+            const userId = document.getElementById('user-id').value.trim();
             const strategy = document.querySelector('input[name="strategy"]:checked').value;
-            const idempotencyKey = document.getElementById('idempotency-key').value;
+            const idempotencyKey = document.getElementById('idempotency-key').value.trim();
+            const ticketInfo = ticketsData.find(t => t.id === ticketId);
 
             const startTime = performance.now();
 
@@ -422,35 +631,144 @@
                 });
 
                 const latency = Math.round(performance.now() - startTime);
-                const data = await res.json();
+                const rawText = await res.text();
+                let data = {};
+                try {
+                    data = rawText ? JSON.parse(rawText) : {};
+                } catch {
+                    data = { detail: rawText };
+                }
 
                 if (res.ok) {
-                    confetti({ particleCount: 70, spread: 70, origin: { y: 0.8 } });
-                    appendOrderLog(data.orderNumber, userId, ticketId, quantity, data.totalPrice, latency, 'CONFIRMED');
+                    const isIdempotentReplay = orderHistory.some(o => o.orderNumber === data.orderNumber);
+                    if (isIdempotentReplay) {
+                        const existingRow = document.querySelector(`tr[data-order="${CSS.escape(data.orderNumber)}"]`);
+                        if (existingRow) {
+                            existingRow.classList.remove('row-flash');
+                            void existingRow.offsetWidth;
+                            existingRow.classList.add('row-flash');
+                        }
+                        const msg = `Đơn ${data.orderNumber} đã tồn tại với mã Idempotency này. Hệ thống trả lại kết quả cũ và KHÔNG trừ kho lần thứ 2.`;
+                        showToast({
+                            type: 'info',
+                            title: 'Chống Trùng Giao Dịch (Idempotency Hit)',
+                            message: msg,
+                            badge: `HTTP ${res.status} · ${latency}ms`,
+                            duration: 6500
+                        });
+                        renderInlineFeedback('manual-order-feedback', {
+                            type: 'info',
+                            title: 'Idempotency Hit — Không trừ kho kép',
+                            message: msg,
+                            badge: `HTTP ${res.status}`,
+                            details: [
+                                ['Mã đơn', data.orderNumber],
+                                ['Chiến lược', strategy],
+                                ['Tổng tiền', formatVND(data.totalPrice)],
+                                ['Độ trễ', `${latency} ms`]
+                            ]
+                        });
+                    } else {
+                        confetti({ particleCount: 70, spread: 70, origin: { y: 0.8 } });
+                        const orderStatus = data.status || 'CONFIRMED';
+                        appendOrderLog(data.orderNumber, userId || 'guest', ticketId, quantity, data.totalPrice, latency, orderStatus);
+                        const eventLabel = ticketInfo ? ticketInfo.eventName : `Vé #${ticketId}`;
+                        const msg = `Đặt thành công ${quantity} vé "${eventLabel}". Mã đơn: ${data.orderNumber} (${formatVND(data.totalPrice)}).`;
+                        showToast({
+                            type: 'success',
+                            title: 'Đặt vé thành công!',
+                            message: msg,
+                            badge: `HTTP ${res.status} · ${latency}ms`,
+                            duration: 5500
+                        });
+                        renderInlineFeedback('manual-order-feedback', {
+                            type: 'success',
+                            title: 'Xác nhận đặt vé thành công',
+                            message: `Đơn hàng cho ${userId || 'guest'} đã được ghi nhận vào hệ thống.`,
+                            badge: `HTTP ${res.status}`,
+                            details: [
+                                ['Mã đơn', data.orderNumber],
+                                ['Tổng thanh toán', formatVND(data.totalPrice)],
+                                ['Chiến lược', strategy],
+                                ['Độ trễ', `${latency} ms`]
+                            ]
+                        });
+                    }
                 } else {
-                    alert('Đặt vé không thành công: ' + (data.detail || data.title || 'Lỗi xử lý'));
+                    const errDetail = data.detail || data.title || 'Yêu cầu không hợp lệ';
+                    const isRateLimit = res.status === 429;
+                    const isSoldOutOrConflict = res.status === 400 || res.status === 409;
+                    const toastType = isRateLimit ? 'error' : (isSoldOutOrConflict ? 'warning' : 'error');
+                    const statusBadge = isRateLimit ? 'RATE LIMIT 429' : (res.status === 409 ? 'CONFLICT 409' : `REJECTED ${res.status}`);
+                    const errTitle = isRateLimit
+                        ? 'Vượt giới hạn tốc độ (Rate Limit 429)'
+                        : (res.status === 409 ? 'Xung đột khóa đồng thời (409)' : `Đặt vé bị từ chối (HTTP ${res.status})`);
+
+                    appendOrderLog(`REJECTED-${res.status}`, userId || 'guest', ticketId, quantity, 0, latency, statusBadge);
+                    showToast({
+                        type: toastType,
+                        title: errTitle,
+                        message: errDetail,
+                        badge: `HTTP ${res.status} · ${latency}ms`,
+                        duration: 6000
+                    });
+                    renderInlineFeedback('manual-order-feedback', {
+                        type: toastType,
+                        title: errTitle,
+                        message: errDetail,
+                        badge: `HTTP ${res.status}`,
+                        details: [
+                            ['Sự kiện', ticketInfo ? ticketInfo.ticketCode : `#${ticketId}`],
+                            ['Chiến lược', strategy],
+                            ['Khách hàng', userId || '(trống)'],
+                            ['Độ trễ', `${latency} ms`]
+                        ]
+                    });
                 }
             } catch (err) {
                 console.error(err);
-                alert('Lỗi kết nối: ' + err.message);
+                showToast({
+                    type: 'error',
+                    title: 'Lỗi kết nối máy chủ',
+                    message: err.message || 'Không thể liên hệ tới API /api/v1/orders',
+                    badge: 'NETWORK ERROR'
+                });
+                renderInlineFeedback('manual-order-feedback', {
+                    type: 'error',
+                    title: 'Lỗi kết nối máy chủ',
+                    message: err.message || 'Không thể liên hệ tới API /api/v1/orders',
+                    badge: 'NETWORK ERROR'
+                });
             } finally {
                 btn.disabled = false;
-                btn.classList.remove('opacity-75');
+                btn.classList.remove('opacity-75', 'cursor-wait');
+                btn.innerHTML = btnOriginalHtml;
                 if (!document.getElementById('keep-idempotency').checked) {
-                    regenerateIdempotencyKey();
+                    regenerateIdempotencyKey(false);
                 }
-                fetchTickets();
+                fetchTickets(false);
             }
         }
 
         async function runConcurrencySimulation() {
             const btn = document.getElementById('btn-run-sim');
-            btn.disabled = true;
-            btn.classList.add('opacity-75');
-
+            const btnOriginalHtml = btn.innerHTML;
             const totalRequests = Number(document.getElementById('sim-concurrency').value);
             const ticketId = Number(document.getElementById('sim-ticket').value);
             const strategy = document.getElementById('sim-strategy').value;
+            const ticketInfo = ticketsData.find(t => t.id === ticketId);
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75', 'cursor-wait');
+            btn.innerHTML = `<span>Đang bắn ${totalRequests} luồng đồng thời...</span>`;
+
+            showToast({
+                type: 'info',
+                title: 'Bắt đầu bắn tải tranh chấp',
+                message: `Đang gửi ${totalRequests} requests đồng thời tới ${ticketInfo ? ticketInfo.ticketCode : '#' + ticketId} (${strategy}).`,
+                badge: `${totalRequests} THREADS`,
+                duration: 3000
+            });
 
             let success = 0;
             let soldOut = 0;
@@ -504,9 +822,36 @@
                 confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
             }
 
+            const simType = errors > 0 ? 'error' : (success > 0 ? 'success' : 'warning');
+            const simTitle = success > 0
+                ? 'Hoàn tất mô phỏng tranh chấp (0% bán âm)'
+                : 'Tất cả request đều bị chặn hết vé / giới hạn';
+            const simMessage = `Đã xử lý xong ${totalRequests} luồng (${strategy}): ${success} đơn thành công, ${soldOut} bị chặn hết vé/xung đột (400/409), ${errors} lỗi khác/429.`;
+
+            showToast({
+                type: simType,
+                title: simTitle,
+                message: simMessage,
+                badge: `${avg}ms AVG`,
+                duration: 6000
+            });
+            renderInlineFeedback('sim-feedback', {
+                type: simType,
+                title: simTitle,
+                message: simMessage,
+                badge: `${totalRequests} REQUESTS`,
+                details: [
+                    ['Thành công (201)', String(success)],
+                    ['Hết vé/Xung đột', String(soldOut)],
+                    ['Lỗi / Rate Limit', String(errors)],
+                    ['Độ trễ TB', `${avg} ms`]
+                ]
+            });
+
             btn.disabled = false;
-            btn.classList.remove('opacity-75');
-            fetchTickets();
+            btn.classList.remove('opacity-75', 'cursor-wait');
+            btn.innerHTML = btnOriginalHtml;
+            fetchTickets(false);
         }
 
         function appendOrderLog(orderNumber, user, ticketId, qty, amount, latency, status) {
@@ -515,24 +860,32 @@
                 tbody.innerHTML = '';
             }
 
+            const isRejected = String(status).startsWith('REJECTED') || String(status).startsWith('RATE LIMIT') || String(status).startsWith('CONFLICT');
+            const statusStyle = isRejected
+                ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-slate-800/40 transition';
+            if (orderNumber && !isRejected) {
+                tr.setAttribute('data-order', orderNumber);
+            }
             tr.innerHTML = `
-                <td class="py-2.5 px-3 text-amber-400 font-bold">${orderNumber || 'N/A'}</td>
-                <td class="py-2.5 px-3 text-slate-300">${user}</td>
-                <td class="py-2.5 px-3 text-slate-400">#${ticketId}</td>
-                <td class="py-2.5 px-3 text-white">${qty}</td>
-                <td class="py-2.5 px-3 text-emerald-400 font-bold">${formatVND(amount || 0)}</td>
-                <td class="py-2.5 px-3 text-cyan-400">${latency}ms</td>
+                <td class="py-2.5 px-3 ${isRejected ? 'text-red-400' : 'text-amber-400'} font-bold">${escapeHtml(orderNumber || 'N/A')}</td>
+                <td class="py-2.5 px-3 text-slate-300">${escapeHtml(user)}</td>
+                <td class="py-2.5 px-3 text-slate-400">#${escapeHtml(ticketId)}</td>
+                <td class="py-2.5 px-3 text-white">${escapeHtml(qty)}</td>
+                <td class="py-2.5 px-3 ${isRejected ? 'text-slate-500' : 'text-emerald-400 font-bold'}">${formatVND(amount || 0)}</td>
+                <td class="py-2.5 px-3 text-cyan-400">${escapeHtml(latency)}ms</td>
                 <td class="py-2.5 px-3">
-                    <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">${status}</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] border ${statusStyle}">${escapeHtml(status)}</span>
                 </td>
                 <td class="py-2.5 px-3 text-slate-500">${new Date().toLocaleTimeString('vi-VN')}</td>
             `;
 
             tbody.prepend(tr);
-            orderHistory.push({ orderNumber, user, amount, latency });
-            document.getElementById('orders-count').textContent = `${orderHistory.length} đơn hàng được ghi nhận`;
+            orderHistory.push({ orderNumber, user, amount, latency, status });
+            document.getElementById('orders-count').textContent = `${orderHistory.length} giao dịch được ghi nhận`;
         }
 
         function clearOrdersFeed() {
@@ -543,14 +896,20 @@
                 </tr>
             `;
             document.getElementById('orders-count').textContent = '0 đơn hàng được ghi nhận';
+            showToast({
+                type: 'info',
+                title: 'Đã làm sạch nhật ký giao dịch',
+                message: 'Danh sách đơn hàng trong phiên hiện tại đã được đặt lại.',
+                duration: 3000
+            });
         }
 
-        function refreshData() {
-            fetchTickets();
+        function refreshData(notify = false) {
+            fetchTickets(notify);
         }
 
         // Auto load on init
-        fetchTickets();
+        fetchTickets(false);
     </script>
 </body>
 </html>
