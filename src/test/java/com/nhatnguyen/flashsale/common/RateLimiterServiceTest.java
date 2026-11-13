@@ -57,4 +57,20 @@ class RateLimiterServiceTest {
         boolean allowed = rateLimiterService.tryAcquire("192.168.1.100");
         assertThat(allowed).isTrue();
     }
+
+    @Test
+    @DisplayName("Local bucket throttles requests when Redis is down and burst exceeds capacity")
+    void testLocalBucketThrottlingOnRedisOutage() {
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any(), any()))
+                .thenThrow(new RuntimeException("Redis connection refused"));
+
+        String ip = "10.0.0.1";
+        int passed = 0;
+        for (int i = 0; i < 25; i++) {
+            if (rateLimiterService.tryAcquire(ip)) {
+                passed++;
+            }
+        }
+        assertThat(passed).isEqualTo(20);
+    }
 }

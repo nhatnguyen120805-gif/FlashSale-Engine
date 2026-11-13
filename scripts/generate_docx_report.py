@@ -90,7 +90,7 @@ def create_report():
             ("Môi trường", True),
             ("JDK 22, Virtual Threads, H2 / PostgreSQL", False),
             ("Độ bao phủ DoD", True),
-            ("100% Pass (14/14 Unit/Int Tests)", False),
+            ("100% Pass (15/15 Unit/Int Tests)", False),
         ],
         [
             ("Phán quyết chung", True),
