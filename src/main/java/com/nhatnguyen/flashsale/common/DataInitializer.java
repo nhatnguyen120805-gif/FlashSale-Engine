@@ -68,9 +68,11 @@ public class DataInitializer implements CommandLineRunner {
         try {
             if (redisTemplate != null && redisTemplate.opsForValue() != null) {
                 ticketRepository.findAll().forEach(ticket -> {
-                    String redisKey = "ticket:" + ticket.getId() + ":stock";
-                    redisTemplate.opsForValue().set(redisKey, String.valueOf(ticket.getStock()));
-                    log.info("Preloaded stock to Redis: key={}, stock={}", redisKey, ticket.getStock());
+                    String stockKey = "ticket:" + ticket.getId() + ":stock";
+                    String priceKey = "ticket:" + ticket.getId() + ":price";
+                    redisTemplate.opsForValue().set(stockKey, String.valueOf(ticket.getStock()));
+                    redisTemplate.opsForValue().set(priceKey, ticket.getPrice().toPlainString());
+                    log.info("Preloaded stock and price to Redis: id={}, stock={}, price={}", ticket.getId(), ticket.getStock(), ticket.getPrice());
                 });
             }
         } catch (Exception ex) {

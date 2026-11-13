@@ -10,6 +10,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 
@@ -89,14 +90,35 @@ public class RedisLuaLockStrategy implements StockDeductionStrategy {
             throw new OutOfStockException("Unable to deduct stock for ticket " + ticketId + " via Redis Lua");
         }
 
-        // Fetch ticket price for total calculation (can also be cached)
-        Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new TicketNotFoundException("Ticket not found with id: " + ticketId));
+        // Fetch ticket price from Redis cache to avoid database hit on fast-path
+        BigDecimal unitPrice = getCachedPrice(ticketId);
 
         int remainingStock = result.intValue();
         log.debug("Redis Lua atomic deduction success for ticketId={}, remainingStock={}", ticketId, remainingStock);
 
-        return DeductionResult.ok(ticketId, quantity, remainingStock, ticket.getPrice());
+        return DeductionResult.ok(ticketId, quantity, remainingStock, unitPrice);
+    }
+
+    private BigDecimal getCachedPrice(Long ticketId) {
+        String priceKey = "ticket:" + ticketId + ":price";
+        try {
+            String cachedPrice = redisTemplate.opsForValue().get(priceKey);
+            if (cachedPrice != null && !cachedPrice.isBlank()) {
+                return new BigDecimal(cachedPrice);
+            }
+        } catch (Exception ex) {
+            log.debug("Redis price cache miss or error for ticketId={}: {}", ticketId, ex.getMessage());
+        }
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new TicketNotFoundException("Ticket not found with id: " + ticketId));
+        BigDecimal price = ticket.getPrice();
+        try {
+            redisTemplate.opsForValue().set(priceKey, price.toPlainString());
+        } catch (Exception ignored) {
+            // Non-critical cache write error
+        }
+        return price;
     }
 
     public void revertStock(Long ticketId, int quantity) {

@@ -51,10 +51,12 @@ public class RateLimiterService {
     private final DefaultRedisScript<Long> rateLimitScript;
 
     @Value("${flashsale.rate-limit.capacity:20}")
-    private long defaultCapacity;
+    private long defaultCapacity = 20;
 
     @Value("${flashsale.rate-limit.refill-tokens-per-second:10}")
-    private long defaultRefillRate;
+    private long defaultRefillRate = 10;
+
+    private final java.util.concurrent.ConcurrentMap<String, LocalTokenBucket> localBuckets = new java.util.concurrent.ConcurrentHashMap<>();
 
     public RateLimiterService(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -82,8 +84,38 @@ public class RateLimiterService {
             );
             return result != null && result == 1L;
         } catch (Exception ex) {
-            log.warn("RateLimiter Redis failure, failing open for client={}: {}", clientIdentifier, ex.getMessage());
-            return true; // Fail open if Redis has temporary connectivity issue
+            log.warn("RateLimiter Redis failure, falling back to local token bucket for client={}: {}", clientIdentifier, ex.getMessage());
+            return tryAcquireLocal(clientIdentifier, capacity);
+        }
+    }
+
+    private boolean tryAcquireLocal(String clientIdentifier, long capacity) {
+        LocalTokenBucket bucket = localBuckets.computeIfAbsent(clientIdentifier, k -> new LocalTokenBucket(capacity));
+        return bucket.tryConsume();
+    }
+
+    private static class LocalTokenBucket {
+        private final long capacity;
+        private double tokens;
+        private long lastRefillTime;
+
+        public LocalTokenBucket(long capacity) {
+            this.capacity = capacity;
+            this.tokens = capacity;
+            this.lastRefillTime = System.currentTimeMillis();
+        }
+
+        public synchronized boolean tryConsume() {
+            long now = System.currentTimeMillis();
+            double seconds = (now - lastRefillTime) / 1000.0;
+            tokens = Math.min(capacity, tokens + seconds * 5.0); // 5 tokens/sec
+            lastRefillTime = now;
+
+            if (tokens >= 1.0) {
+                tokens -= 1.0;
+                return true;
+            }
+            return false;
         }
     }
 }
