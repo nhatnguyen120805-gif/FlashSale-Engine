@@ -468,7 +468,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Idempotency-Key': idemp
+                        'X-Idempotency-Key': idemp,
+                        'X-Forwarded-For': '10.0.0.' + (i + 1)
                     },
                     body: JSON.stringify({ ticketId, userId, quantity: 1, strategy })
                 }).then(async res => {
@@ -478,8 +479,8 @@
                     if (res.status === 201) {
                         success++;
                         const order = await res.json();
-                        appendOrderLog(order.orderNumber, userId, ticketId, 1, order.totalPrice, Math.round(lat), 'CONFIRMED');
-                    } else if (res.status === 400) {
+                        appendOrderLog(order.orderNumber, userId, ticketId, 1, order.totalPrice, Math.round(lat), order.status || 'CONFIRMED');
+                    } else if (res.status === 400 || res.status === 409) {
                         soldOut++;
                     } else {
                         errors++;

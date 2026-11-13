@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -69,34 +70,57 @@ public class RedisLuaLockStrategy implements StockDeductionStrategy {
         String redisKey = "ticket:" + ticketId + ":stock";
         List<String> keys = Collections.singletonList(redisKey);
 
-        Long result = executeDeductScript(keys, quantity);
+        try {
+            Long result = executeDeductScript(keys, quantity);
 
-        // If key missing in Redis (-1), warm up cache from DB and re-execute
-        if (result != null && result == -1L) {
-            log.info("Redis stock key {} missing, lazy-loading from database...", redisKey);
-            Ticket ticket = ticketRepository.findById(ticketId)
-                    .orElseThrow(() -> new TicketNotFoundException("Ticket not found with id: " + ticketId));
+            // If key missing in Redis (-1), warm up cache from DB and re-execute
+            if (result != null && result == -1L) {
+                log.info("Redis stock key {} missing, lazy-loading from database...", redisKey);
+                Ticket ticket = ticketRepository.findById(ticketId)
+                        .orElseThrow(() -> new TicketNotFoundException("Ticket not found with id: " + ticketId));
 
-            redisTemplate.opsForValue().setIfAbsent(redisKey, String.valueOf(ticket.getStock()));
-            result = executeDeductScript(keys, quantity);
+                redisTemplate.opsForValue().setIfAbsent(redisKey, String.valueOf(ticket.getStock()));
+                result = executeDeductScript(keys, quantity);
+            }
+
+            if (result != null && result == -2L) {
+                log.warn("Redis Lua: Insufficient stock for ticketId={}, requestedQuantity={}", ticketId, quantity);
+                throw new OutOfStockException("Ticket " + ticketId + " is out of stock in flash-sale cache!");
+            }
+
+            if (result == null || result < 0) {
+                throw new OutOfStockException("Unable to deduct stock for ticket " + ticketId + " via Redis Lua");
+            }
+
+            // Fetch ticket price from Redis cache to avoid database hit on fast-path
+            BigDecimal unitPrice = getCachedPrice(ticketId);
+
+            int remainingStock = result.intValue();
+            log.debug("Redis Lua atomic deduction success for ticketId={}, remainingStock={}", ticketId, remainingStock);
+
+            return DeductionResult.ok(ticketId, quantity, remainingStock, unitPrice);
+        } catch (OutOfStockException | TicketNotFoundException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("Redis unreachable during RedisLuaLockStrategy.deduct, falling back to atomic DB deduction for ticketId={}: {}",
+                    ticketId, ex.getMessage());
+            return deductLocalFallback(ticketId, quantity);
         }
+    }
 
-        if (result != null && result == -2L) {
-            log.warn("Redis Lua: Insufficient stock for ticketId={}, requestedQuantity={}", ticketId, quantity);
-            throw new OutOfStockException("Ticket " + ticketId + " is out of stock in flash-sale cache!");
+    @Transactional
+    protected DeductionResult deductLocalFallback(Long ticketId, int quantity) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new TicketNotFoundException("Ticket not found with id: " + ticketId));
+        if (ticket.getStock() < quantity) {
+            throw new OutOfStockException("Ticket " + ticketId + " is out of stock! Current stock: " + ticket.getStock());
         }
-
-        if (result == null || result < 0) {
-            throw new OutOfStockException("Unable to deduct stock for ticket " + ticketId + " via Redis Lua");
+        int updated = ticketRepository.deductStockDirect(ticketId, quantity);
+        if (updated == 0) {
+            throw new OutOfStockException("Ticket " + ticketId + " is out of stock!");
         }
-
-        // Fetch ticket price from Redis cache to avoid database hit on fast-path
-        BigDecimal unitPrice = getCachedPrice(ticketId);
-
-        int remainingStock = result.intValue();
-        log.debug("Redis Lua atomic deduction success for ticketId={}, remainingStock={}", ticketId, remainingStock);
-
-        return DeductionResult.ok(ticketId, quantity, remainingStock, unitPrice);
+        int remaining = Math.max(0, ticket.getStock() - quantity);
+        return DeductionResult.ok(ticketId, quantity, remaining, ticket.getPrice());
     }
 
     private BigDecimal getCachedPrice(Long ticketId) {
@@ -123,8 +147,12 @@ public class RedisLuaLockStrategy implements StockDeductionStrategy {
 
     public void revertStock(Long ticketId, int quantity) {
         String redisKey = "ticket:" + ticketId + ":stock";
-        Long restored = redisTemplate.execute(revertScript, Collections.singletonList(redisKey), String.valueOf(quantity));
-        log.info("Compensated Redis stock for ticketId={}, restoredQuantity={}, currentStock={}", ticketId, quantity, restored);
+        try {
+            Long restored = redisTemplate.execute(revertScript, Collections.singletonList(redisKey), String.valueOf(quantity));
+            log.info("Compensated Redis stock for ticketId={}, restoredQuantity={}, currentStock={}", ticketId, quantity, restored);
+        } catch (Exception ex) {
+            log.warn("Failed to revert Redis stock for ticketId={} (Redis may be offline): {}", ticketId, ex.getMessage());
+        }
     }
 
     private Long executeDeductScript(List<String> keys, int quantity) {

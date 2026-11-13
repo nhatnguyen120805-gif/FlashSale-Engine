@@ -99,4 +99,36 @@ class IdempotencyServiceTest {
         idempotencyService.release(key);
         verify(redisTemplate).delete("idempotency:" + key);
     }
+
+    @Test
+    @DisplayName("Local fallback prevents duplicates and caches responses when Redis is offline")
+    void testLocalFallbackWhenRedisOffline() {
+        String key = "key-1";
+        when(valueOperations.setIfAbsent(any(), any(), any(Duration.class)))
+                .thenThrow(new RuntimeException("Redis offline"));
+        when(valueOperations.get(any()))
+                .thenThrow(new RuntimeException("Redis offline"));
+        org.mockito.Mockito.doThrow(new RuntimeException("Redis offline"))
+                .when(valueOperations).set(any(), any(), any(Duration.class));
+
+        assertThat(idempotencyService.acquire(key)).isTrue();
+        assertThat(idempotencyService.acquire(key)).isFalse();
+
+        OrderResponse resp = new OrderResponse(
+                "ORD-LOCAL-1",
+                "user-1",
+                1L,
+                1,
+                new BigDecimal("950000"),
+                OrderStatus.CONFIRMED,
+                "Success",
+                key,
+                LocalDateTime.now()
+        );
+        idempotencyService.saveCompletedResponse(key, resp);
+
+        Optional<OrderResponse> cached = idempotencyService.getCompletedResponse(key);
+        assertThat(cached).isPresent();
+        assertThat(cached.get().orderNumber()).isEqualTo("ORD-LOCAL-1");
+    }
 }

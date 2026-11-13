@@ -163,12 +163,39 @@ class FlashSaleConcurrencyTest {
         endGate.await();
         executor.close();
 
-        // Assert: Invariant: Final stock >= 0 and never negative!
+        // Assert: Invariant: Final stock >= 0 and never negative, and @Version actually incremented!
         Ticket finalTicket = ticketRepository.findById(ticketId).orElseThrow();
         long totalOrdersInDb = orderRepository.countByTicketId(ticketId);
 
         assertThat(finalTicket.getStock()).isGreaterThanOrEqualTo(0);
         assertThat(finalTicket.getStock() + totalOrdersInDb).isEqualTo(5);
         assertThat(successCount.get()).isEqualTo((int) totalOrdersInDb);
+        assertThat(finalTicket.getVersion()).isGreaterThan(0L);
+    }
+
+    @Test
+    @DisplayName("Idempotency Guard: Duplicate X-Idempotency-Key must not double-deduct stock")
+    void testDuplicateIdempotencyKeyDoesNotDoubleDeductStock() {
+        Ticket ticket = new Ticket(
+                null,
+                "Ha Anh Tuan - Live Concert",
+                "HAT-IDEMP-10",
+                new BigDecimal("950000.00"),
+                10,
+                10
+        );
+        Ticket savedTicket = ticketRepository.save(ticket);
+        Long ticketId = savedTicket.getId();
+        String sharedKey = "idemp-" + UUID.randomUUID();
+
+        CreateOrderRequest request = new CreateOrderRequest(ticketId, "user-idemp", 1, "PESSIMISTIC");
+        OrderResponse first = orderService.createOrder(request, sharedKey);
+        OrderResponse second = orderService.createOrder(request, sharedKey);
+
+        Ticket finalTicket = ticketRepository.findById(ticketId).orElseThrow();
+        assertThat(first.orderNumber()).isNotBlank();
+        assertThat(second.orderNumber()).isEqualTo(first.orderNumber());
+        assertThat(finalTicket.getStock()).isEqualTo(9);
+        assertThat(orderRepository.countByTicketId(ticketId)).isEqualTo(1);
     }
 }
