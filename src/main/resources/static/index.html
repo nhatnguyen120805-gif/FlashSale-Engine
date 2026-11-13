@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlashSale-Engine ⚡ High-Concurrency Booking Engine</title>
+    <title>FlashSale-Engine ⚡ Hệ Thống Săn Vé & Flash Sale Chịu Tải Cao</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -72,9 +72,9 @@
                 <div>
                     <h1 class="font-display font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
                         FlashSale-Engine
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-mono border border-amber-500/20 font-normal">v1.0.0</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-mono border border-amber-500/20 font-normal">Concert Việt Nam</span>
                     </h1>
-                    <p class="text-xs text-slate-400">High-Concurrency Booking Engine & Zero-Overselling Demo</p>
+                    <p class="text-xs text-slate-400">Hệ thống Săn Vé Ca Nhạc & Chống Bán Âm Kho (Zero-Overselling)</p>
                 </div>
             </div>
 
@@ -83,7 +83,7 @@
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span class="text-slate-300 font-mono">JDK 21 Virtual Threads</span>
                 </div>
-                <button onclick="refreshData()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
+                <button onclick="refreshData()" title="Làm mới tồn kho" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
                     <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i>
                 </button>
             </div>
@@ -97,14 +97,15 @@
         <section>
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h2 class="font-display font-bold text-2xl text-white">Live Flash-Sale Inventory</h2>
-                    <p class="text-sm text-slate-400">Real-time stock monitoring backed by ACID Ledger & In-Memory Redis</p>
+                    <h2 class="font-display font-bold text-2xl text-white">Sự Kiện Ca Nhạc & Tồn Kho Realtime</h2>
+                    <p class="text-sm text-slate-400">Dữ liệu kiểm soát đồng thời qua ACID Ledger & In-Memory Redis Lua</p>
                 </div>
-                <span class="text-xs font-mono text-slate-400" id="last-updated-text">Updating...</span>
+                <span class="text-xs font-mono text-slate-400" id="last-updated-text">Đang đồng bộ...</span>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="tickets-container">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="tickets-container">
                 <!-- Skeleton loader -->
+                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-48"></div>
                 <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-48"></div>
                 <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-48"></div>
             </div>
@@ -119,7 +120,7 @@
                     <div class="flex items-center justify-between border-b border-brand-border pb-4">
                         <div class="flex items-center space-x-2">
                             <i data-lucide="ticket" class="w-5 h-5 text-amber-400"></i>
-                            <h3 class="font-display font-bold text-lg text-white">Single Order Booking</h3>
+                            <h3 class="font-display font-bold text-lg text-white">Đặt Vé Trực Tiếp (Thủ Công)</h3>
                         </div>
                         <span class="text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded font-mono border border-amber-500/20">Manual Order</span>
                     </div>
@@ -127,29 +128,28 @@
                     <!-- Booking Form -->
                     <form id="order-form" onsubmit="handleManualOrder(event)" class="space-y-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Select Ticket Tier</label>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Chọn Sự Kiện / Hạng Vé</label>
                             <select id="ticket-select" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 transition">
-                                <option value="1">VIP Flash Sale ($299.99)</option>
-                                <option value="2">General Admission ($99.99)</option>
+                                <option value="1">Đang tải danh sách vé...</option>
                             </select>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">Quantity (1-10)</label>
-                                <input type="number" id="ticket-qty" min="1" max="10" value="1" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 transition">
+                                <label class="block text-xs font-medium text-slate-400 mb-1">Số Lượng Vé (1 - 10)</label>
+                                <input type="number" id="ticket-qty" min="1" max="10" value="1" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 transition font-mono">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">User ID</label>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">Tên Người Đặt (User ID)</label>
                                 <input type="text" id="user-id" value="nhatnguyen" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 transition font-mono">
                             </div>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Locking Strategy</label>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Chiến Lược Khóa (Concurrency Strategy)</label>
                             <div class="grid grid-cols-3 gap-2">
                                 <label class="cursor-pointer">
-                                    <input type="radio" name="strategy" value="PESSIMISTIC" class="peer sr-only">
+                                    <input type="radio" name="strategy" value="PESSIMISTIC" checked class="peer sr-only">
                                     <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-500 peer-checked:text-amber-400 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center text-xs transition">
                                         <div class="font-bold">🔒 Pessimistic</div>
                                         <div class="text-[10px] text-slate-400">FOR UPDATE</div>
@@ -163,7 +163,7 @@
                                     </div>
                                 </label>
                                 <label class="cursor-pointer">
-                                    <input type="radio" name="strategy" value="REDIS_LUA" checked class="peer sr-only">
+                                    <input type="radio" name="strategy" value="REDIS_LUA" class="peer sr-only">
                                     <div class="peer-checked:bg-amber-500/20 peer-checked:border-amber-500 peer-checked:text-amber-400 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-center text-xs transition">
                                         <div class="font-bold">⚡ Redis Lua</div>
                                         <div class="text-[10px] text-slate-400">In-Memory</div>
@@ -174,18 +174,18 @@
 
                         <div class="space-y-2 pt-1">
                             <div class="flex items-center justify-between text-xs">
-                                <span class="text-slate-400 font-medium">Idempotency Key (X-Idempotency-Key)</span>
-                                <button type="button" onclick="regenerateIdempotencyKey()" class="text-amber-400 hover:underline text-[11px]">Generate New</button>
+                                <span class="text-slate-400 font-medium">Mã Giao Dịch (X-Idempotency-Key)</span>
+                                <button type="button" onclick="regenerateIdempotencyKey()" class="text-amber-400 hover:underline text-[11px]">Tạo mã mới</button>
                             </div>
                             <input type="text" id="idempotency-key" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-300 font-mono focus:outline-none focus:border-amber-500 transition">
                             <div class="flex items-center space-x-2 pt-1">
                                 <input type="checkbox" id="keep-idempotency" class="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-0">
-                                <label for="keep-idempotency" class="text-xs text-slate-400 cursor-pointer">Lock Key to test duplicate resubmission (Idempotency Proof)</label>
+                                <label for="keep-idempotency" class="text-xs text-slate-400 cursor-pointer">Khóa mã để test gửi trùng (Chứng minh Idempotency)</label>
                             </div>
                         </div>
 
-                        <button type="submit" id="btn-submit-order" class="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-sm shadow-lg shadow-amber-500/20 transition flex items-center justify-center space-x-2">
-                            <span>Place Ticket Order</span>
+                        <button type="submit" id="btn-submit-order" class="w-full mt-2 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-sm shadow-lg shadow-amber-500/20 transition flex items-center justify-center space-x-2">
+                            <span>Xác Nhận Đặt Vé Ngay</span>
                             <i data-lucide="arrow-right" class="w-4 h-4"></i>
                         </button>
                     </form>
@@ -198,62 +198,61 @@
                     <div class="flex items-center justify-between border-b border-brand-border pb-4">
                         <div class="flex items-center space-x-2">
                             <i data-lucide="zap" class="w-5 h-5 text-cyan-400"></i>
-                            <h3 class="font-display font-bold text-lg text-white">Browser Concurrency Stress Simulator</h3>
+                            <h3 class="font-display font-bold text-lg text-white">Mô Phỏng Tranh Chấp Tải Đồng Thời</h3>
                         </div>
                         <span class="text-xs bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded font-mono border border-cyan-500/20">Race Condition Lab</span>
                     </div>
 
                     <p class="text-xs text-slate-300">
-                        Fire up to <strong class="text-white">100 parallel asynchronous requests</strong> directly from your browser in the exact same millisecond. Prove that the engine achieves <strong class="text-emerald-400">0% overselling</strong> under brutal contention!
+                        Bắn đồng thời lên đến <strong class="text-white">100 luồng bất đồng bộ</strong> trực tiếp từ trình duyệt trong cùng 1 mili-giây. Kiểm chứng thực tế hệ thống đạt <strong class="text-emerald-400">0% bán âm kho</strong> dưới áp lực tranh chấp khốc liệt!
                     </p>
 
                     <div class="grid grid-cols-3 gap-3">
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Burst Threads</label>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Số Luồng Song Song</label>
                             <select id="sim-concurrency" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
-                                <option value="20">20 Parallel Users</option>
-                                <option value="50" selected>50 Parallel Users</option>
-                                <option value="100">100 Parallel Users</option>
+                                <option value="20">20 Người Cùng Bấm</option>
+                                <option value="50" selected>50 Người Cùng Bấm</option>
+                                <option value="100">100 Người Cùng Bấm</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Target Ticket</label>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Sự Kiện Săn Vé</label>
                             <select id="sim-ticket" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
-                                <option value="1">VIP Flash Sale (Tier 1)</option>
-                                <option value="2">General Admission (Tier 2)</option>
+                                <option value="1">Đang tải...</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Strategy</label>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Chiến Lược Khóa</label>
                             <select id="sim-strategy" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
-                                <option value="PESSIMISTIC">Pessimistic Lock</option>
-                                <option value="OPTIMISTIC">Optimistic Lock</option>
-                                <option value="REDIS_LUA" selected>Redis Lua Script</option>
+                                <option value="PESSIMISTIC" selected>Pessimistic Lock (DB)</option>
+                                <option value="OPTIMISTIC">Optimistic Lock (@Version)</option>
+                                <option value="REDIS_LUA">Redis Lua Script (RAM)</option>
                             </select>
                         </div>
                     </div>
 
-                    <button onclick="runConcurrencySimulation()" id="btn-run-sim" class="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-extrabold text-sm shadow-lg shadow-cyan-500/20 transition flex items-center justify-center space-x-2">
+                    <button onclick="runConcurrencySimulation()" id="btn-run-sim" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-extrabold text-sm shadow-lg shadow-cyan-500/20 transition flex items-center justify-center space-x-2">
                         <i data-lucide="flame" class="w-4 h-4"></i>
-                        <span>Launch Parallel Rush Attack</span>
+                        <span>Bắn Tải Tranh Chấp Đồng Thời</span>
                     </button>
 
                     <!-- Realtime Telemetry Grid -->
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                         <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
-                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Successful</span>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Thành Công (201)</span>
                             <span class="text-xl font-extrabold text-emerald-400 font-mono" id="stat-success">0</span>
                         </div>
                         <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
-                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Sold Out (400)</span>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Hết Vé / Sold Out (400)</span>
                             <span class="text-xl font-extrabold text-amber-400 font-mono" id="stat-soldout">0</span>
                         </div>
                         <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
-                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Blocked / 429</span>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Bị Chặn / 429</span>
                             <span class="text-xl font-extrabold text-crimson font-mono" id="stat-errors">0</span>
                         </div>
                         <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
-                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Avg Latency</span>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Độ Trễ Trung Bình</span>
                             <span class="text-xl font-extrabold text-cyan-400 font-mono" id="stat-latency">0<span class="text-xs">ms</span></span>
                         </div>
                     </div>
@@ -266,11 +265,11 @@
             <div class="flex items-center justify-between border-b border-brand-border pb-4">
                 <div class="flex items-center space-x-2">
                     <i data-lucide="receipt" class="w-5 h-5 text-slate-400"></i>
-                    <h3 class="font-display font-bold text-lg text-white">Live Transactions Feed & Audit Trail</h3>
+                    <h3 class="font-display font-bold text-lg text-white">Sổ Nhật Ký Giao Dịch & Đơn Hàng Thành Công</h3>
                 </div>
                 <div class="flex items-center space-x-3">
-                    <span class="text-xs text-slate-400 font-mono" id="orders-count">0 orders recorded</span>
-                    <button onclick="clearOrdersFeed()" class="text-xs text-slate-400 hover:text-white transition">Clear feed</button>
+                    <span class="text-xs text-slate-400 font-mono" id="orders-count">0 đơn hàng được ghi nhận</span>
+                    <button onclick="clearOrdersFeed()" class="text-xs text-slate-400 hover:text-white transition">Xóa nhật ký</button>
                 </div>
             </div>
 
@@ -278,19 +277,19 @@
                 <table class="w-full text-left text-xs">
                     <thead class="text-slate-400 border-b border-slate-800 uppercase tracking-wider font-mono text-[10px]">
                         <tr>
-                            <th class="py-2.5 px-3">Order Number</th>
-                            <th class="py-2.5 px-3">User</th>
-                            <th class="py-2.5 px-3">Ticket</th>
-                            <th class="py-2.5 px-3">Qty</th>
-                            <th class="py-2.5 px-3">Amount</th>
-                            <th class="py-2.5 px-3">Latency</th>
-                            <th class="py-2.5 px-3">Status</th>
-                            <th class="py-2.5 px-3">Timestamp</th>
+                            <th class="py-2.5 px-3">Mã Đơn Hàng</th>
+                            <th class="py-2.5 px-3">Khách Hàng</th>
+                            <th class="py-2.5 px-3">Mã Vé</th>
+                            <th class="py-2.5 px-3">Số Lượng</th>
+                            <th class="py-2.5 px-3">Tổng Tiền</th>
+                            <th class="py-2.5 px-3">Độ Trễ</th>
+                            <th class="py-2.5 px-3">Trạng Thái</th>
+                            <th class="py-2.5 px-3">Thời Gian</th>
                         </tr>
                     </thead>
                     <tbody id="orders-tbody" class="divide-y divide-slate-800/60 font-mono">
                         <tr>
-                            <td colspan="8" class="text-center py-8 text-slate-500">No orders placed yet in this session. Start by placing an order above!</td>
+                            <td colspan="8" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
                         </tr>
                     </tbody>
                 </table>
@@ -301,7 +300,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-brand-border py-6 mt-12 bg-slate-950/40 text-center text-xs text-slate-500">
-        <p>FlashSale-Engine ⚡ Built with Spring Boot 3.3.5 & Java 21 Virtual Threads &bull; Designed by Nguyễn Văn Nhật</p>
+        <p>FlashSale-Engine ⚡ Phát triển bởi Nguyễn Văn Nhật &bull; Kiến trúc Java 21 Virtual Threads & Spring Boot 3.3.5</p>
     </footer>
 
     <!-- Frontend Script -->
@@ -311,8 +310,12 @@
         let ticketsData = [];
         let orderHistory = [];
 
+        function formatVND(amount) {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+        }
+
         function generateUUID() {
-            return 'key-' + Math.random().toString(36).substring(2, 10) + '-' + Date.now();
+            return 'VN-IDEMP-' + Math.random().toString(36).substring(2, 9).toUpperCase() + '-' + Date.now();
         }
 
         function regenerateIdempotencyKey() {
@@ -326,15 +329,30 @@
 
             try {
                 const res = await fetch('/api/v1/tickets');
-                if (!res.ok) throw new Error('Failed to fetch tickets');
+                if (!res.ok) throw new Error('Không thể tải danh sách vé');
                 ticketsData = await res.json();
                 renderTickets();
-                document.getElementById('last-updated-text').textContent = 'Last synced: ' + new Date().toLocaleTimeString();
+                populateDropdowns();
+                document.getElementById('last-updated-text').textContent = 'Đồng bộ lúc: ' + new Date().toLocaleTimeString('vi-VN');
             } catch (err) {
                 console.error(err);
             } finally {
                 if (refreshIcon) refreshIcon.classList.remove('animate-spin');
             }
+        }
+
+        function populateDropdowns() {
+            const selectOrder = document.getElementById('ticket-select');
+            const selectSim = document.getElementById('sim-ticket');
+
+            if (!selectOrder || !selectSim || ticketsData.length === 0) return;
+
+            const optionsHtml = ticketsData.map(t => `
+                <option value="${t.id}">${t.eventName} — ${formatVND(t.price)} (Còn: ${t.stock})</option>
+            `).join('');
+
+            selectOrder.innerHTML = optionsHtml;
+            selectSim.innerHTML = optionsHtml;
         }
 
         function renderTickets() {
@@ -347,26 +365,24 @@
                 const isOut = t.stock <= 0;
 
                 return `
-                    <div class="bg-brand-card p-6 rounded-2xl border border-brand-border relative overflow-hidden transition hover:border-slate-700">
-                        <div class="flex items-start justify-between">
-                            <div>
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">${t.ticketCode}</span>
-                                    ${isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">SOLD OUT</span>' : ''}
-                                    ${isLow && !isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">SELLING FAST</span>' : ''}
-                                </div>
-                                <h3 class="font-display font-bold text-xl text-white mt-2">${t.eventName}</h3>
+                    <div class="bg-brand-card p-6 rounded-2xl border border-brand-border relative overflow-hidden transition hover:border-slate-700 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">${t.ticketCode}</span>
+                                ${isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">HẾT VÉ</span>' : ''}
+                                ${isLow && !isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">SẮP HẾT VÉ</span>' : ''}
                             </div>
-                            <div class="text-right">
-                                <span class="text-xs text-slate-400 block">Unit Price</span>
-                                <span class="font-display font-extrabold text-2xl text-amber-400">$${t.price.toFixed(2)}</span>
+                            <h3 class="font-display font-bold text-lg text-white mt-3 leading-snug">${t.eventName}</h3>
+                            <div class="mt-4">
+                                <span class="text-[11px] text-slate-400 block">Giá niêm yết</span>
+                                <span class="font-display font-extrabold text-2xl text-amber-400">${formatVND(t.price)}</span>
                             </div>
                         </div>
 
                         <div class="mt-6 space-y-2">
                             <div class="flex justify-between text-xs">
-                                <span class="text-slate-400">Available Stock</span>
-                                <span class="font-mono font-bold ${isOut ? 'text-red-400' : isLow ? 'text-amber-400' : 'text-emerald-400'}">${t.stock} / ${t.initialStock} tickets (${percent}%)</span>
+                                <span class="text-slate-400">Tồn kho khả dụng</span>
+                                <span class="font-mono font-bold ${isOut ? 'text-red-400' : isLow ? 'text-amber-400' : 'text-emerald-400'}">${t.stock} / ${t.initialStock} vé (${percent}%)</span>
                             </div>
                             <div class="w-full h-3 rounded-full bg-slate-900 overflow-hidden border border-slate-800">
                                 <div class="h-full rounded-full transition-all duration-500 ${isOut ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-400'}" style="width: ${percent}%"></div>
@@ -405,14 +421,14 @@
                 const data = await res.json();
 
                 if (res.ok) {
-                    confetti({ particleCount: 60, spread: 60, origin: { y: 0.8 } });
+                    confetti({ particleCount: 70, spread: 70, origin: { y: 0.8 } });
                     appendOrderLog(data.orderNumber, userId, ticketId, quantity, data.totalPrice, latency, 'CONFIRMED');
                 } else {
-                    alert('Order Failed: ' + (data.detail || data.title || 'Error occurred'));
+                    alert('Đặt vé không thành công: ' + (data.detail || data.title || 'Lỗi xử lý'));
                 }
             } catch (err) {
                 console.error(err);
-                alert('Request error: ' + err.message);
+                alert('Lỗi kết nối: ' + err.message);
             } finally {
                 btn.disabled = false;
                 btn.classList.remove('opacity-75');
@@ -440,7 +456,7 @@
             const promises = [];
 
             for (let i = 0; i < totalRequests; i++) {
-                const userId = `vu_bot_${i + 1}`;
+                const userId = `khan_gia_${i + 1}`;
                 const idemp = generateUUID();
                 const startTime = performance.now();
 
@@ -501,27 +517,27 @@
                 <td class="py-2.5 px-3 text-slate-300">${user}</td>
                 <td class="py-2.5 px-3 text-slate-400">#${ticketId}</td>
                 <td class="py-2.5 px-3 text-white">${qty}</td>
-                <td class="py-2.5 px-3 text-emerald-400 font-bold">$${Number(amount || 0).toFixed(2)}</td>
+                <td class="py-2.5 px-3 text-emerald-400 font-bold">${formatVND(amount || 0)}</td>
                 <td class="py-2.5 px-3 text-cyan-400">${latency}ms</td>
                 <td class="py-2.5 px-3">
                     <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">${status}</span>
                 </td>
-                <td class="py-2.5 px-3 text-slate-500">${new Date().toLocaleTimeString()}</td>
+                <td class="py-2.5 px-3 text-slate-500">${new Date().toLocaleTimeString('vi-VN')}</td>
             `;
 
             tbody.prepend(tr);
             orderHistory.push({ orderNumber, user, amount, latency });
-            document.getElementById('orders-count').textContent = `${orderHistory.length} orders recorded`;
+            document.getElementById('orders-count').textContent = `${orderHistory.length} đơn hàng được ghi nhận`;
         }
 
         function clearOrdersFeed() {
             orderHistory = [];
             document.getElementById('orders-tbody').innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center py-8 text-slate-500">No orders placed yet in this session. Start by placing an order above!</td>
+                    <td colspan="8" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
                 </tr>
             `;
-            document.getElementById('orders-count').textContent = '0 orders recorded';
+            document.getElementById('orders-count').textContent = '0 đơn hàng được ghi nhận';
         }
 
         function refreshData() {

@@ -28,27 +28,40 @@ public class DataInitializer implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         if (ticketRepository.count() == 0) {
-            log.info("Seeding initial flash-sale tickets into database...");
-            Ticket vipTicket = new Ticket(
+            log.info("Seeding initial flash-sale concert tickets (Vietnam) into database...");
+
+            Ticket mtpTicket = new Ticket(
                     null,
-                    "Taylor Swift Eras Tour — VIP Flash Sale",
-                    "TS-VIP-2026",
-                    new BigDecimal("299.99"),
+                    "Sơn Tùng M-TP — Live Concert 2026 (Hạng VVIP Sky)",
+                    "MTP-VVIP-2026",
+                    new BigDecimal("3500000"),
                     100,
                     100
             );
-            ticketRepository.save(vipTicket);
+            ticketRepository.save(mtpTicket);
 
-            Ticket gaTicket = new Ticket(
+            Ticket atvncgTicket = new Ticket(
                     null,
-                    "Taylor Swift Eras Tour — General Admission",
-                    "TS-GA-2026",
-                    new BigDecimal("99.99"),
+                    "Anh Trai Vượt Ngàn Chông Gai — Concert Mỹ Đình (Fanzone VIP)",
+                    "ATVNCG-VIP-2026",
+                    new BigDecimal("2200000"),
+                    250,
+                    250
+            );
+            ticketRepository.save(atvncgTicket);
+
+            Ticket hatTicket = new Ticket(
+                    null,
+                    "Hà Anh Tuấn — Live Concert Chân Trời Rực Rỡ (Hạng GA)",
+                    "HAT-GA-2026",
+                    new BigDecimal("950000"),
                     500,
                     500
             );
-            ticketRepository.save(gaTicket);
-            log.info("Seeded tickets successfully with IDs: {} and {}", vipTicket.getId(), gaTicket.getId());
+            ticketRepository.save(hatTicket);
+
+            log.info("Seeded Vietnamese concert tickets successfully: IDs [{}, {}, {}]",
+                    mtpTicket.getId(), atvncgTicket.getId(), hatTicket.getId());
         }
 
         // Sync initial stock to Redis
