@@ -33,11 +33,9 @@ public class OrderEventProducer {
         try {
             rabbitTemplate.convertAndSend(exchange, routingKey, event);
         } catch (Exception ex) {
-            log.error("Failed to publish OrderCreatedEvent for orderNumber={}. Triggering Redis stock compensation!",
-                    event.orderNumber(), ex);
-            // Compensate Redis stock to prevent ghost loss
-            redisLuaLockStrategy.revertStock(event.ticketId(), event.quantity());
-            throw new RuntimeException("Message publishing failed; stock reverted safely", ex);
+            log.warn("RabbitMQ unreachable while publishing OrderCreatedEvent for orderNumber={}: {}",
+                    event.orderNumber(), ex.getMessage());
+            throw new RuntimeException("Message publishing failed", ex);
         }
     }
 }

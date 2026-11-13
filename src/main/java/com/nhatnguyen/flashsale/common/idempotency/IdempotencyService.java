@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class IdempotencyService {
@@ -20,6 +22,8 @@ public class IdempotencyService {
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final ConcurrentMap<String, Boolean> localLocks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, OrderResponse> localCompleted = new ConcurrentHashMap<>();
 
     @Value("${flashsale.idempotency.ttl-seconds:86400}")
     private long idempotencyTtlSeconds;
@@ -38,8 +42,11 @@ public class IdempotencyService {
             Boolean acquired = redisTemplate.opsForValue().setIfAbsent(redisKey, PROCESSING_STATUS, Duration.ofSeconds(60));
             return Boolean.TRUE.equals(acquired);
         } catch (Exception ex) {
-            log.warn("Redis unreachable in IdempotencyService.acquire, failing open: {}", ex.getMessage());
-            return true;
+            log.warn("Redis unreachable in IdempotencyService.acquire, using local fallback: {}", ex.getMessage());
+            if (localCompleted.containsKey(idempotencyKey)) {
+                return false;
+            }
+            return localLocks.putIfAbsent(idempotencyKey, Boolean.TRUE) == null;
         }
     }
 
@@ -53,7 +60,7 @@ public class IdempotencyService {
             return PROCESSING_STATUS.equals(val);
         } catch (Exception ex) {
             log.warn("Redis unreachable in IdempotencyService.isProcessing: {}", ex.getMessage());
-            return false;
+            return localLocks.containsKey(idempotencyKey) && !localCompleted.containsKey(idempotencyKey);
         }
     }
 
@@ -70,7 +77,7 @@ public class IdempotencyService {
             return Optional.of(objectMapper.readValue(val, OrderResponse.class));
         } catch (Exception ex) {
             log.warn("Redis unreachable in IdempotencyService.getCompletedResponse: {}", ex.getMessage());
-            return Optional.empty();
+            return Optional.ofNullable(localCompleted.get(idempotencyKey));
         }
     }
 
@@ -85,6 +92,8 @@ public class IdempotencyService {
             log.debug("Saved idempotency result for key={}, TTL={}s", idempotencyKey, idempotencyTtlSeconds);
         } catch (Exception ex) {
             log.warn("Redis unreachable in IdempotencyService.saveCompletedResponse: {}", ex.getMessage());
+            localCompleted.put(idempotencyKey, response);
+            localLocks.remove(idempotencyKey);
         }
     }
 
@@ -95,6 +104,7 @@ public class IdempotencyService {
                 log.debug("Released idempotency key={} after failure", idempotencyKey);
             } catch (Exception ex) {
                 log.warn("Redis unreachable in IdempotencyService.release: {}", ex.getMessage());
+                localLocks.remove(idempotencyKey);
             }
         }
     }

@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class OptimisticLockStrategy implements StockDeductionStrategy {
 
     private static final Logger log = LoggerFactory.getLogger(OptimisticLockStrategy.class);
-    private static final int MAX_RETRIES = 3;
+    private static final int MAX_RETRIES = 8;
 
     private final TicketRepository ticketRepository;
 
@@ -53,7 +53,7 @@ public class OptimisticLockStrategy implements StockDeductionStrategy {
 
             log.debug("Optimistic lock collision detected for ticketId={} on attempt {}, retrying...", ticketId, attempts);
             try {
-                Thread.sleep(10 + (long) (Math.random() * 20));
+                Thread.sleep(5 + (long) (Math.random() * 15));
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("Thread interrupted during optimistic retry", ie);

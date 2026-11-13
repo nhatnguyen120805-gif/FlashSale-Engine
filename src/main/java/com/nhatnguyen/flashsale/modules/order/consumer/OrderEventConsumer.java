@@ -4,7 +4,6 @@ import com.nhatnguyen.flashsale.modules.order.entity.Order;
 import com.nhatnguyen.flashsale.modules.order.entity.OrderStatus;
 import com.nhatnguyen.flashsale.modules.order.event.OrderCreatedEvent;
 import com.nhatnguyen.flashsale.modules.order.repository.OrderRepository;
-import com.nhatnguyen.flashsale.modules.ticket.entity.Ticket;
 import com.nhatnguyen.flashsale.modules.ticket.repository.TicketRepository;
 import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
@@ -57,13 +56,8 @@ public class OrderEventConsumer {
             );
             orderRepository.save(order);
 
-            // 3. Sync PostgreSQL ticket stock to maintain eventual consistency with Redis
-            Ticket ticket = ticketRepository.findById(event.ticketId()).orElse(null);
-            if (ticket != null) {
-                int newStock = Math.max(0, ticket.getStock() - event.quantity());
-                ticket.setStock(newStock);
-                ticketRepository.save(ticket);
-            }
+            // 3. Sync PostgreSQL ticket stock atomically to avoid @Version collisions across concurrent consumers
+            ticketRepository.deductStockDirect(event.ticketId(), event.quantity());
 
             // 4. Acknowledge message
             channel.basicAck(deliveryTag, false);

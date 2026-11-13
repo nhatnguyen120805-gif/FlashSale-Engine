@@ -51,6 +51,14 @@ public class OrderService {
                 return cached.get();
             }
 
+            Optional<Order> existingOrder = orderRepository.findByIdempotencyKey(idempotencyKey);
+            if (existingOrder.isPresent()) {
+                log.info("Idempotency DB HIT: Returning existing persisted order for key={}", idempotencyKey);
+                OrderResponse dbResponse = OrderResponse.from(existingOrder.get(), "Order retrieved via idempotency key");
+                idempotencyService.saveCompletedResponse(idempotencyKey, dbResponse);
+                return dbResponse;
+            }
+
             boolean acquired = idempotencyService.acquire(idempotencyKey);
             if (!acquired) {
                 log.warn("Idempotency CONFLICT: Key {} is currently being processed", idempotencyKey);
@@ -73,7 +81,7 @@ public class OrderService {
 
             // 4. Persistence Dispatch
             if (strategyType == StrategyType.REDIS_LUA) {
-                // Async processing via RabbitMQ
+                // Async processing via RabbitMQ with sync DB fallback when broker is offline
                 OrderCreatedEvent event = new OrderCreatedEvent(
                         orderNumber,
                         request.userId(),
@@ -84,8 +92,24 @@ public class OrderService {
                         idempotencyKey,
                         System.currentTimeMillis()
                 );
-                orderEventProducer.publishOrderCreated(event);
-                response = OrderResponse.pending(orderNumber, request.userId(), request.ticketId(), request.quantity(), totalPrice, idempotencyKey);
+                try {
+                    orderEventProducer.publishOrderCreated(event);
+                    response = OrderResponse.pending(orderNumber, request.userId(), request.ticketId(), request.quantity(), totalPrice, idempotencyKey);
+                } catch (Exception mqEx) {
+                    log.warn("RabbitMQ publish failed for orderNumber={}, falling back to synchronous DB persistence: {}",
+                            orderNumber, mqEx.getMessage());
+                    Order order = new Order(
+                            orderNumber,
+                            request.userId(),
+                            request.ticketId(),
+                            request.quantity(),
+                            totalPrice,
+                            OrderStatus.CONFIRMED,
+                            idempotencyKey
+                    );
+                    Order saved = orderRepository.save(order);
+                    response = OrderResponse.from(saved, "Order placed via REDIS_LUA (local sync fallback)");
+                }
             } else {
                 // Synchronous database commit for Pessimistic / Optimistic benchmarking
                 Order order = new Order(
