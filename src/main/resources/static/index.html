@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlashSale-Engine ⚡ Hệ Thống Săn Vé & Flash Sale Chịu Tải Cao</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>FlashSale-Engine ⚡ Hệ Thống Săn Vé Ca Nhạc Việt Nam</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -48,22 +51,12 @@
         .glow-cyan {
             box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.25);
         }
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #131B2E;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 3px;
-        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-black">
 
     <!-- Top Navigation -->
-    <header class="border-b border-brand-border bg-brand-dark/80 backdrop-blur-md sticky top-0 z-50">
+    <header class="border-b border-brand-border bg-brand-dark/90 backdrop-blur-md sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-black font-extrabold text-xl shadow-lg shadow-amber-500/20">
@@ -72,19 +65,20 @@
                 <div>
                     <h1 class="font-display font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
                         FlashSale-Engine
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-mono border border-amber-500/20 font-normal">Concert Việt Nam</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-mono border border-amber-500/20 font-semibold">Concert Việt Nam (VNĐ)</span>
                     </h1>
-                    <p class="text-xs text-slate-400">Hệ thống Săn Vé Ca Nhạc & Chống Bán Âm Kho (Zero-Overselling)</p>
+                    <p class="text-xs text-slate-400">Hệ thống Săn Vé Chịu Tải Cao & Bảo Đảm 0% Bán Âm Kho</p>
                 </div>
             </div>
 
-            <div class="flex items-center space-x-4">
-                <div class="flex items-center space-x-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+            <div class="flex items-center space-x-3">
+                <div class="hidden sm:flex items-center space-x-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span class="text-slate-300 font-mono">JDK 21 Virtual Threads</span>
                 </div>
-                <button onclick="refreshData()" title="Làm mới tồn kho" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
-                    <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i>
+                <button onclick="refreshData()" title="Làm mới tồn kho" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition text-xs font-medium">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refresh-icon"></i>
+                    <span>Đồng bộ</span>
                 </button>
             </div>
         </div>
@@ -98,16 +92,17 @@
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h2 class="font-display font-bold text-2xl text-white">Sự Kiện Ca Nhạc & Tồn Kho Realtime</h2>
-                    <p class="text-sm text-slate-400">Dữ liệu kiểm soát đồng thời qua ACID Ledger & In-Memory Redis Lua</p>
+                    <p class="text-sm text-slate-400">Tồn kho được khóa nguyên tử chống bán âm qua ACID DB & In-Memory Redis</p>
                 </div>
-                <span class="text-xs font-mono text-slate-400" id="last-updated-text">Đang đồng bộ...</span>
+                <span class="text-xs font-mono text-slate-400" id="last-updated-text">Đang tải...</span>
             </div>
 
+            <!-- Dynamic Ticket Cards Grid -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="tickets-container">
                 <!-- Skeleton loader -->
-                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-48"></div>
-                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-48"></div>
-                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-48"></div>
+                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-52"></div>
+                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-52"></div>
+                <div class="bg-brand-card p-6 rounded-2xl border border-brand-border animate-pulse h-52"></div>
             </div>
         </section>
 
@@ -310,8 +305,10 @@
         let ticketsData = [];
         let orderHistory = [];
 
+        // Chuyển đổi định dạng VNĐ chuẩn: ví dụ 3.500.000 ₫
         function formatVND(amount) {
-            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+            if (!amount && amount !== 0) return '0 ₫';
+            return Number(amount).toLocaleString('vi-VN') + ' ₫';
         }
 
         function generateUUID() {
@@ -328,7 +325,8 @@
             if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
             try {
-                const res = await fetch('/api/v1/tickets');
+                // Thêm timestamp để chặn hoàn toàn trình duyệt lưu cache file cũ
+                const res = await fetch('/api/v1/tickets?_t=' + Date.now());
                 if (!res.ok) throw new Error('Không thể tải danh sách vé');
                 ticketsData = await res.json();
                 renderTickets();
@@ -367,18 +365,24 @@
                 return `
                     <div class="bg-brand-card p-6 rounded-2xl border border-brand-border relative overflow-hidden transition hover:border-slate-700 flex flex-col justify-between">
                         <div>
+                            <!-- Header thẻ vé: Mã vé + Trạng thái -->
                             <div class="flex items-center justify-between">
-                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">${t.ticketCode}</span>
+                                <span class="text-[11px] font-mono font-semibold px-2.5 py-1 rounded bg-slate-800 text-amber-400 border border-slate-700">${t.ticketCode}</span>
                                 ${isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">HẾT VÉ</span>' : ''}
                                 ${isLow && !isOut ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">SẮP HẾT VÉ</span>' : ''}
                             </div>
-                            <h3 class="font-display font-bold text-lg text-white mt-3 leading-snug">${t.eventName}</h3>
-                            <div class="mt-4">
-                                <span class="text-[11px] text-slate-400 block">Giá niêm yết</span>
-                                <span class="font-display font-extrabold text-2xl text-amber-400">${formatVND(t.price)}</span>
+                            
+                            <!-- Tên sự kiện (độc lập, không bị đè chữ) -->
+                            <h3 class="font-display font-bold text-base sm:text-lg text-white mt-3 min-h-[48px] leading-snug">${t.eventName}</h3>
+                            
+                            <!-- Giá niêm yết bằng VNĐ -->
+                            <div class="mt-3 pt-3 border-t border-slate-800/80 flex items-baseline justify-between">
+                                <span class="text-xs text-slate-400">Giá niêm yết:</span>
+                                <span class="font-display font-extrabold text-2xl text-amber-400 tracking-tight">${formatVND(t.price)}</span>
                             </div>
                         </div>
 
+                        <!-- Thanh tiến trình tồn kho -->
                         <div class="mt-6 space-y-2">
                             <div class="flex justify-between text-xs">
                                 <span class="text-slate-400">Tồn kho khả dụng</span>
