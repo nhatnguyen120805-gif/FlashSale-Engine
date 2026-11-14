@@ -3,13 +3,16 @@ package com.nhatnguyen.flashsale.modules.order.consumer;
 import com.nhatnguyen.flashsale.modules.order.entity.Order;
 import com.nhatnguyen.flashsale.modules.order.entity.OrderStatus;
 import com.nhatnguyen.flashsale.modules.order.event.OrderCreatedEvent;
+import com.nhatnguyen.flashsale.modules.order.event.OrderExpirationEvent;
 import com.nhatnguyen.flashsale.modules.order.repository.OrderRepository;
+import com.nhatnguyen.flashsale.modules.outbox.service.OutboxService;
 import com.nhatnguyen.flashsale.modules.ticket.repository.TicketRepository;
 import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
@@ -22,10 +25,20 @@ public class OrderEventConsumer {
 
     private final OrderRepository orderRepository;
     private final TicketRepository ticketRepository;
+    private final OutboxService outboxService;
 
-    public OrderEventConsumer(OrderRepository orderRepository, TicketRepository ticketRepository) {
+    @Value("${flashsale.rabbitmq.exchange:flashsale.order.exchange}")
+    private String orderExchangeName;
+
+    @Value("${flashsale.rabbitmq.delay-routing-key:flashsale.order.delay}")
+    private String delayRoutingKey;
+
+    public OrderEventConsumer(OrderRepository orderRepository,
+                              TicketRepository ticketRepository,
+                              OutboxService outboxService) {
         this.orderRepository = orderRepository;
         this.ticketRepository = ticketRepository;
+        this.outboxService = outboxService;
     }
 
     @RabbitListener(queues = "${flashsale.rabbitmq.queue:flashsale.order.create.queue}", ackMode = "MANUAL")
@@ -44,14 +57,14 @@ public class OrderEventConsumer {
                 return;
             }
 
-            // 2. Persist Order in PostgreSQL
+            // 2. Persist Order in PostgreSQL as PENDING (awaiting payment within TTL)
             Order order = new Order(
                     event.orderNumber(),
                     event.userId(),
                     event.ticketId(),
                     event.quantity(),
                     event.totalPrice(),
-                    OrderStatus.CONFIRMED,
+                    OrderStatus.PENDING,
                     event.idempotencyKey()
             );
             orderRepository.save(order);
@@ -59,9 +72,19 @@ public class OrderEventConsumer {
             // 3. Sync PostgreSQL ticket stock atomically to avoid @Version collisions across concurrent consumers
             ticketRepository.deductStockDirect(event.ticketId(), event.quantity());
 
-            // 4. Acknowledge message
+            // 4. Enqueue TTL expiration check inside the same transaction
+            outboxService.enqueue(
+                    "ORDER",
+                    event.orderNumber(),
+                    "ORDER_RESERVATION_CREATED",
+                    orderExchangeName,
+                    delayRoutingKey,
+                    new OrderExpirationEvent(event.orderNumber(), event.ticketId(), event.quantity(), System.currentTimeMillis())
+            );
+
+            // 5. Acknowledge message
             channel.basicAck(deliveryTag, false);
-            log.info("Order {} successfully persisted to database and ACKed.", event.orderNumber());
+            log.info("Order {} persisted as PENDING and outbox expiration event enqueued.", event.orderNumber());
 
         } catch (Exception ex) {
             log.error("Error processing OrderCreatedEvent for orderNumber={}. Routing to DLQ.", event.orderNumber(), ex);

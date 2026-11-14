@@ -313,11 +313,12 @@
                             <th class="py-2.5 px-3">Độ Trễ</th>
                             <th class="py-2.5 px-3">Trạng Thái</th>
                             <th class="py-2.5 px-3">Thời Gian</th>
+                            <th class="py-2.5 px-3 text-right">Thao Tác</th>
                         </tr>
                     </thead>
                     <tbody id="orders-tbody" class="divide-y divide-slate-800/60 font-mono">
                         <tr>
-                            <td colspan="8" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
+                            <td colspan="9" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
                         </tr>
                     </tbody>
                 </table>
@@ -858,6 +859,132 @@
             fetchTickets(false);
         }
 
+        function renderOrderStatusBadge(status) {
+            const upper = String(status || '').toUpperCase();
+            if (upper.startsWith('REJECTED') || upper.startsWith('RATE LIMIT') || upper.startsWith('CONFLICT')) {
+                return `<span class="px-2 py-0.5 rounded text-[10px] border bg-red-500/20 text-red-300 border-red-500/30">${escapeHtml(status)}</span>`;
+            }
+            if (upper === 'PENDING') {
+                return `<span class="px-2 py-0.5 rounded text-[10px] border bg-amber-500/20 text-amber-300 border-amber-500/30">PENDING</span>`;
+            }
+            if (upper === 'EXPIRED' || upper === 'CANCELLED' || upper === 'FAILED') {
+                return `<span class="px-2 py-0.5 rounded text-[10px] border bg-slate-600/30 text-slate-300 border-slate-500/40">${escapeHtml(upper)}</span>`;
+            }
+            return `<span class="px-2 py-0.5 rounded text-[10px] border bg-emerald-500/20 text-emerald-400 border-emerald-500/30">${escapeHtml(status)}</span>`;
+        }
+
+        function renderOrderActions(orderNumber, status) {
+            const upper = String(status || '').toUpperCase();
+            if (upper === 'PENDING' && orderNumber && !String(orderNumber).startsWith('REJECTED')) {
+                const safeOrder = escapeHtml(orderNumber);
+                return `
+                    <div class="flex items-center justify-end gap-1.5">
+                        <button type="button" onclick="payOrder('${safeOrder}')" class="px-2 py-1 rounded-md text-[10px] font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition">Thanh toán</button>
+                        <button type="button" onclick="expireOrder('${safeOrder}')" class="px-2 py-1 rounded-md text-[10px] font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 transition">Hết hạn & Hoàn kho</button>
+                    </div>
+                `;
+            }
+            if (upper === 'CONFIRMED') {
+                return '<span class="text-[10px] text-emerald-400">Đã thanh toán</span>';
+            }
+            if (upper === 'EXPIRED') {
+                return '<span class="text-[10px] text-amber-300">Đã hoàn kho</span>';
+            }
+            return '<span class="text-[10px] text-slate-600">—</span>';
+        }
+
+        function updateOrderRowState(orderNumber, nextStatus) {
+            const row = document.querySelector(`tr[data-order="${CSS.escape(orderNumber)}"]`);
+            if (!row) return;
+            const statusCell = row.querySelector('[data-cell="status"]');
+            const actionCell = row.querySelector('[data-cell="actions"]');
+            if (statusCell) statusCell.innerHTML = renderOrderStatusBadge(nextStatus);
+            if (actionCell) actionCell.innerHTML = renderOrderActions(orderNumber, nextStatus);
+            row.classList.remove('row-flash');
+            void row.offsetWidth;
+            row.classList.add('row-flash');
+        }
+
+        async function payOrder(orderNumber) {
+            try {
+                const res = await fetch('/api/v1/payments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderNumber, paymentMethod: 'VN_QR_PAY' })
+                });
+                const raw = await res.text();
+                const data = raw ? JSON.parse(raw) : {};
+                if (res.ok) {
+                    updateOrderRowState(orderNumber, data.orderStatus || 'CONFIRMED');
+                    showToast({
+                        type: 'success',
+                        title: 'Thanh toán đơn hàng thành công',
+                        message: `Đơn ${orderNumber} đã chuyển sang CONFIRMED (Mã GD: ${data.transactionId}).`,
+                        badge: `HTTP ${res.status}`,
+                        duration: 5000
+                    });
+                } else {
+                    showToast({
+                        type: 'warning',
+                        title: data.title || `Không thể thanh toán (HTTP ${res.status})`,
+                        message: data.detail || 'Đơn hàng đã hết hạn hoặc thay đổi trạng thái.',
+                        badge: `HTTP ${res.status}`,
+                        duration: 5500
+                    });
+                    await syncSingleOrderRow(orderNumber);
+                }
+            } catch (err) {
+                showToast({ type: 'error', title: 'Lỗi thanh toán', message: err.message, badge: 'ERROR' });
+            } finally {
+                fetchTickets(false);
+            }
+        }
+
+        async function expireOrder(orderNumber) {
+            try {
+                const res = await fetch(`/api/v1/orders/${encodeURIComponent(orderNumber)}/expire`, {
+                    method: 'POST'
+                });
+                const raw = await res.text();
+                const data = raw ? JSON.parse(raw) : {};
+                if (res.ok) {
+                    updateOrderRowState(orderNumber, data.status || 'EXPIRED');
+                    showToast({
+                        type: 'info',
+                        title: 'Đơn hết hạn — Đã hoàn tồn kho!',
+                        message: `Đơn ${orderNumber} chuyển sang EXPIRED và đã cộng trả ${data.quantity} vé về kho PostgreSQL & Redis.`,
+                        badge: 'COMPENSATED',
+                        duration: 5500
+                    });
+                } else {
+                    showToast({
+                        type: 'warning',
+                        title: data.title || `Không thể hết hạn đơn (HTTP ${res.status})`,
+                        message: data.detail || 'Đơn hàng đã được thanh toán hoặc đã hoàn kho trước đó.',
+                        badge: `HTTP ${res.status}`,
+                        duration: 5500
+                    });
+                    await syncSingleOrderRow(orderNumber);
+                }
+            } catch (err) {
+                showToast({ type: 'error', title: 'Lỗi hoàn kho', message: err.message, badge: 'ERROR' });
+            } finally {
+                fetchTickets(false);
+            }
+        }
+
+        async function syncSingleOrderRow(orderNumber) {
+            try {
+                const res = await fetch(`/api/v1/orders/${encodeURIComponent(orderNumber)}`);
+                if (res.ok) {
+                    const order = await res.json();
+                    updateOrderRowState(orderNumber, order.status);
+                }
+            } catch {
+                // Non-critical UI state refresh
+            }
+        }
+
         function appendOrderLog(orderNumber, user, ticketId, qty, amount, latency, status) {
             const tbody = document.getElementById('orders-tbody');
             if (tbody.children[0]?.children.length === 1) {
@@ -865,9 +992,6 @@
             }
 
             const isRejected = String(status).startsWith('REJECTED') || String(status).startsWith('RATE LIMIT') || String(status).startsWith('CONFLICT');
-            const statusStyle = isRejected
-                ? 'bg-red-500/20 text-red-300 border-red-500/30'
-                : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
 
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-slate-800/40 transition';
@@ -881,10 +1005,13 @@
                 <td class="py-2.5 px-3 text-white">${escapeHtml(qty)}</td>
                 <td class="py-2.5 px-3 ${isRejected ? 'text-slate-500' : 'text-emerald-400 font-bold'}">${formatVND(amount || 0)}</td>
                 <td class="py-2.5 px-3 text-cyan-400">${escapeHtml(latency)}ms</td>
-                <td class="py-2.5 px-3">
-                    <span class="px-2 py-0.5 rounded text-[10px] border ${statusStyle}">${escapeHtml(status)}</span>
+                <td class="py-2.5 px-3" data-cell="status">
+                    ${renderOrderStatusBadge(status)}
                 </td>
                 <td class="py-2.5 px-3 text-slate-500">${new Date().toLocaleTimeString('vi-VN')}</td>
+                <td class="py-2.5 px-3 text-right" data-cell="actions">
+                    ${renderOrderActions(orderNumber, status)}
+                </td>
             `;
 
             tbody.prepend(tr);
@@ -896,7 +1023,7 @@
             orderHistory = [];
             document.getElementById('orders-tbody').innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
+                    <td colspan="9" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
                 </tr>
             `;
             document.getElementById('orders-count').textContent = '0 đơn hàng được ghi nhận';
@@ -939,7 +1066,7 @@
                 orderHistory = [];
                 document.getElementById('orders-tbody').innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
+                        <td colspan="9" class="text-center py-8 text-slate-500">Chưa có đơn hàng nào trong phiên này. Hãy đặt vé thử ở trên!</td>
                     </tr>
                 `;
                 document.getElementById('orders-count').textContent = '0 đơn hàng được ghi nhận';

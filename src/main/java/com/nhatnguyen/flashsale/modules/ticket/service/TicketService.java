@@ -3,6 +3,8 @@ package com.nhatnguyen.flashsale.modules.ticket.service;
 import com.nhatnguyen.flashsale.common.exception.TicketNotFoundException;
 import com.nhatnguyen.flashsale.common.idempotency.IdempotencyService;
 import com.nhatnguyen.flashsale.modules.order.repository.OrderRepository;
+import com.nhatnguyen.flashsale.modules.outbox.repository.OutboxEventRepository;
+import com.nhatnguyen.flashsale.modules.payment.repository.PaymentRepository;
 import com.nhatnguyen.flashsale.modules.ticket.dto.TicketResponse;
 import com.nhatnguyen.flashsale.modules.ticket.repository.TicketRepository;
 import org.slf4j.Logger;
@@ -21,16 +23,22 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
+    private final OutboxEventRepository outboxEventRepository;
     private final IdempotencyService idempotencyService;
     private final StringRedisTemplate redisTemplate;
 
     public TicketService(
             TicketRepository ticketRepository,
             OrderRepository orderRepository,
+            PaymentRepository paymentRepository,
+            OutboxEventRepository outboxEventRepository,
             IdempotencyService idempotencyService,
             StringRedisTemplate redisTemplate) {
         this.ticketRepository = ticketRepository;
         this.orderRepository = orderRepository;
+        this.paymentRepository = paymentRepository;
+        this.outboxEventRepository = outboxEventRepository;
         this.idempotencyService = idempotencyService;
         this.redisTemplate = redisTemplate;
     }
@@ -61,6 +69,8 @@ public class TicketService {
 
     @Transactional
     public List<TicketResponse> resetAllTickets() {
+        paymentRepository.deleteAllInBatch();
+        outboxEventRepository.deleteAllInBatch();
         orderRepository.deleteAllInBatch();
         ticketRepository.resetAllStockToInitial();
         idempotencyService.clearLocalCache();

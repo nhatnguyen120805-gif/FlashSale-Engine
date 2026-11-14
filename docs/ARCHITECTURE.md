@@ -45,3 +45,23 @@ Khi 5.000 người cùng bấm mua 1 vé ca nhạc trong cùng 1 giây:
 - Áp dụng thuật toán **Token Bucket** qua Redis:
   - Mỗi IP / User ID chỉ có tối đa 5 tokens / giây.
   - Vượt quá hạn mức ➡️ Trả về HTTP `429 Too Many Requests` ngay tại Filter tầng ngoài, không cho request chạm vào DB.
+
+---
+
+## 5. Transactional Outbox Pattern & TTL Auto-Expiration Compensation (RabbitMQ DLX)
+- **Transactional Outbox (`outbox_events`):** Khi tạo đơn hàng (`OrderStatus.PENDING`), xác nhận thanh toán hoặc hoàn kho hết hạn, bản ghi sự kiện được lưu vào bảng `outbox_events` trong **cùng transaction PostgreSQL** với bảng `orders`. `OutboxRelayScheduler` định kỳ đọc sự kiện `PENDING`, đẩy lên RabbitMQ, áp dụng exponential backoff (`5s * 2^retry`) và ngắt mạch sang `FAILED` sau 3 lần lỗi.
+- **Hoàn kho tự động bằng RabbitMQ Delay Queue (`x-message-ttl` + DLX):** Đơn hàng ở trạng thái `PENDING` được đẩy vào `flashsale.order.delay.queue` (TTL mặc định 5 phút). Nếu quá hạn mà chưa thanh toán, RabbitMQ tự động đẩy sang `flashsale.order.expired.queue` để `OrderExpirationConsumer` hoàn trả tồn kho kép xuống PostgreSQL và Redis.
+- **Chống Race Condition Thanh toán vs Hết hạn:** Cả `PaymentService` (`PENDING -> CONFIRMED`) và `OrderExpirationService` (`PENDING -> EXPIRED`) đều dùng câu lệnh cập nhật nguyên tử:
+  ```sql
+  UPDATE orders SET status = :newStatus, updated_at = CURRENT_TIMESTAMP
+  WHERE order_number = :orderNumber AND status = :expectedStatus
+  ```
+  Chỉ duy nhất một luồng thắng `updatedRows == 1`; thanh toán muộn khi đơn đã `EXPIRED` bị từ chối với HTTP `409 Conflict` (RFC 7807 `OrderStateConflictException`).
+
+---
+
+## 6. Observability (Micrometer, Prometheus & Grafana)
+- Tích hợp `FlashSaleMetrics` xuất các metrics nghiệp vụ tại `/actuator/prometheus`:
+  - Counters: `flashsale.orders.created`, `flashsale.orders.out_of_stock`, `flashsale.orders.expired_compensated`, `flashsale.payments.confirmed`, `flashsale.outbox.published`, `flashsale.outbox.failed`
+  - Timer: `flashsale.order.deduction.latency` (p50, p95, p99)
+- Cấu hình sẵn Prometheus (`:9090`) và Grafana (`:3000`) trong `docker-compose.yml`.

@@ -1,7 +1,9 @@
 package com.nhatnguyen.flashsale.modules.order.controller;
 
+import com.nhatnguyen.flashsale.common.exception.OrderStateConflictException;
 import com.nhatnguyen.flashsale.modules.order.dto.CreateOrderRequest;
 import com.nhatnguyen.flashsale.modules.order.dto.OrderResponse;
+import com.nhatnguyen.flashsale.modules.order.service.OrderExpirationService;
 import com.nhatnguyen.flashsale.modules.order.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final OrderService orderService;
+    private final OrderExpirationService orderExpirationService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, OrderExpirationService orderExpirationService) {
         this.orderService = orderService;
+        this.orderExpirationService = orderExpirationService;
     }
 
     @PostMapping
@@ -42,5 +46,20 @@ public class OrderController {
         return orderService.getOrderByNumber(orderNumber)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{orderNumber}/expire")
+    public ResponseEntity<OrderResponse> expireOrder(@PathVariable String orderNumber) {
+        boolean expired = orderExpirationService.expireOrderIfUnpaid(orderNumber);
+        OrderResponse order = orderService.getOrderByNumber(orderNumber).orElse(null);
+        if (order == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!expired) {
+            throw new OrderStateConflictException(
+                    "Cannot expire order " + orderNumber + " in status " + order.status()
+            );
+        }
+        return ResponseEntity.ok(order);
     }
 }

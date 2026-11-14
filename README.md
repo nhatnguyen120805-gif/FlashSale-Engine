@@ -197,9 +197,14 @@ Chi tiết báo cáo đo lường: Xem thêm tại [`docs/BENCHMARK_REPORT.md`](
   - `X-RateLimit-Remaining: 0`
   - `Retry-After: 1`
 
-### 3. Asynchronous Write-Behind & Dead Letter Queue (DLQ)
-- Tách rời hoàn toàn luồng giao dịch người dùng và luồng lưu trữ CSDL.
-- Thiết lập RabbitMQ Dead Letter Exchange (`order.dlx`) và Queue (`order.dlq`) để hứng và xử lý các bản tin lỗi ("poison pills") nhằm bảo vệ hàng đợi chính không bị tắc nghẽn.
+### 3. Asynchronous Write-Behind, Transactional Outbox & Auto-Compensation (DLX/TTL)
+- **Transactional Outbox (`outbox_events`):** Đảm bảo không bao giờ mất sự kiện giữa PostgreSQL và RabbitMQ bằng cách lưu `OutboxEvent` trong cùng một local `@Transactional` boundary; scheduler tự động relay với cơ chế Exponential Backoff (`5s * 2^retry`) và Circuit Breaker (`FAILED` sau 3 lần thử).
+- **Hoàn kho tự động bằng RabbitMQ Delay Queue (`x-message-ttl` + DLX):** Đơn hàng tạo mới nằm ở trạng thái `PENDING`. Nếu quá thời gian giữ vé (`300s`) chưa thanh toán, RabbitMQ tự đẩy sang `flashsale.order.expired.queue` để cộng trả lại tồn kho ở cả PostgreSQL lẫn Redis.
+- **Atomic CAS Guard chống Race Condition:** Dùng Conditional SQL Update (`WHERE order_number = ? AND status = 'PENDING'`) đảm bảo giữa luồng **Thanh toán (`POST /api/v1/payments`)** và luồng **Hết hạn (`POST /api/v1/orders/{orderNumber}/expire`)**, chỉ một luồng duy nhất thắng, tuyệt đối không xảy ra lỗi vừa thanh toán xong lại bị hoàn vé.
+
+### 4. Real-Time Observability (Micrometer, Prometheus & Grafana)
+- Export custom business metrics tại `/actuator/prometheus` (`flashsale.orders.created`, `flashsale.orders.out_of_stock`, `flashsale.orders.expired_compensated`, `flashsale.payments.confirmed`, `flashsale.outbox.published`, `flashsale.order.deduction.latency`).
+- Tích hợp sẵn container **Prometheus** (`http://localhost:9090`) và **Grafana** (`http://localhost:3000`, `admin/admin`) trong `docker-compose.yml`.
 
 ---
 
@@ -287,25 +292,22 @@ k6 run k6/flashsale-stress.js
 
 ## 🧪 Physical OS Verification & Test Results
 
-Toàn bộ logic cốt lõi đã được kiểm chứng bằng bộ kiểm thử tự động với **100% Pass Rate (14/14 tests)**:
+Toàn bộ logic cốt lõi (bao gồm Transactional Outbox, Exponential Backoff Circuit Breaker, TTL Stock Compensation và Race Condition giữa Thanh toán vs Hết hạn đơn trên 20 Virtual Threads) đã được kiểm chứng qua `.\mvnw.cmd test` với **100% Pass Rate (21/21 tests)**:
 
 ```text
-[INFO] -------------------------------------------------------
-[INFO]  T E S T S
-[INFO] -------------------------------------------------------
-[INFO] Running com.nhatnguyen.flashsale.FlashSaleConcurrencyTest
-[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.482 s -- Multi-Threaded Stress Test Passed!
-[INFO] Running com.nhatnguyen.flashsale.RateLimiterServiceTest
-[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.052 s
-[INFO] Running com.nhatnguyen.flashsale.IdempotencyServiceTest
-[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.065 s
-[INFO] Running com.nhatnguyen.flashsale.FlashSaleApplicationTests
-[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.210 s
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0 -- in com.nhatnguyen.flashsale.common.IdempotencyServiceTest
 ...
-[INFO] -------------------------------------------------------
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 -- in com.nhatnguyen.flashsale.OutboxAndExpirationIntegrationTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
 [INFO] BUILD SUCCESS
-[INFO] Total time:  11.842 s
-[INFO] -------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  38.912 s
+[INFO] ------------------------------------------------------------------------
 ```
 
 ---
