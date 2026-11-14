@@ -34,6 +34,21 @@ public class RabbitMQConfig {
     @Value("${flashsale.rabbitmq.dlq-routing-key:flashsale.order.dlq}")
     private String dlqRoutingKey;
 
+    @Value("${flashsale.rabbitmq.delay-queue:flashsale.order.delay.queue}")
+    private String delayQueueName;
+
+    @Value("${flashsale.rabbitmq.delay-routing-key:flashsale.order.delay}")
+    private String delayRoutingKey;
+
+    @Value("${flashsale.rabbitmq.expired-queue:flashsale.order.expired.queue}")
+    private String expiredQueueName;
+
+    @Value("${flashsale.rabbitmq.expired-routing-key:flashsale.order.expired}")
+    private String expiredRoutingKey;
+
+    @Value("${flashsale.order.expiration-ttl-ms:300000}")
+    private long orderExpirationTtlMs;
+
     @Bean
     public DirectExchange orderExchange() {
         return new DirectExchange(orderExchangeName, true, false);
@@ -58,6 +73,20 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue delayQueue() {
+        return QueueBuilder.durable(delayQueueName)
+                .withArgument("x-dead-letter-exchange", dlxExchangeName)
+                .withArgument("x-dead-letter-routing-key", expiredRoutingKey)
+                .withArgument("x-message-ttl", orderExpirationTtlMs)
+                .build();
+    }
+
+    @Bean
+    public Queue expiredQueue() {
+        return QueueBuilder.durable(expiredQueueName).build();
+    }
+
+    @Bean
     public Binding orderBinding(Queue orderQueue, DirectExchange orderExchange) {
         return BindingBuilder.bind(orderQueue).to(orderExchange).with(orderRoutingKey);
     }
@@ -65,6 +94,16 @@ public class RabbitMQConfig {
     @Bean
     public Binding dlqBinding(Queue dlqQueue, DirectExchange dlxExchange) {
         return BindingBuilder.bind(dlqQueue).to(dlxExchange).with(dlqRoutingKey);
+    }
+
+    @Bean
+    public Binding delayBinding(Queue delayQueue, DirectExchange orderExchange) {
+        return BindingBuilder.bind(delayQueue).to(orderExchange).with(delayRoutingKey);
+    }
+
+    @Bean
+    public Binding expiredBinding(Queue expiredQueue, DirectExchange dlxExchange) {
+        return BindingBuilder.bind(expiredQueue).to(dlxExchange).with(expiredRoutingKey);
     }
 
     @Bean

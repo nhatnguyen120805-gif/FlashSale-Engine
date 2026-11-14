@@ -28,6 +28,15 @@ flashsale:
     dlx-exchange: flashsale.order.dlx.exchange
     dlq-queue: flashsale.order.dlq.queue
     dlq-routing-key: flashsale.order.dlq
+    delay-queue: flashsale.order.delay.queue
+    delay-routing-key: flashsale.order.delay
+    expired-queue: flashsale.order.expired.queue
+    expired-routing-key: flashsale.order.expired
+  order:
+    expiration-ttl-ms: 300000
+  outbox:
+    poll-interval-ms: 5000
+    scheduler-enabled: false
   rate-limit:
     capacity: 1000
     refill-tokens-per-second: 1000
